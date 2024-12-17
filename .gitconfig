@@ -1,0 +1,9 @@
+# This is Git's per-user configuration file.
+[user]
+	name = Dor Meiri
+	email = dorm@getport.io
+# Please adapt and uncomment the following lines:
+#	name = Dor Meiri
+#	email = dorm@getport.io 
+[push]
+	autoSetupRemote = true
