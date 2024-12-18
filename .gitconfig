@@ -7,3 +7,5 @@
 #	email = dorm@getport.io 
 [push]
 	autoSetupRemote = true
+[pull]
+	rebase = false

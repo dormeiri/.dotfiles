@@ -189,6 +189,26 @@ which_key.add({
 		mode = "n",
 	},
 
+	-- Copilot
+	{
+		"<leader>cc",
+		"<cmd>CodeCompanionChat Toggle<cr>",
+		desc = "Code Companion Chat",
+		mode = { "n", "v" },
+	},
+	{
+		"<leader>ci",
+		"<cmd>CodeCompanion<cr>",
+		desc = "Code Companion Inline",
+		mode = { "n", "v" },
+	},
+	{
+		"<leader>cp",
+		"<cmd>CodeCompanionChat Add<cr>",
+		desc = "Code Companion Add",
+		mode = "v",
+	},
+
 	-- Git
 	{
 		"<leader>gb",
@@ -271,6 +291,18 @@ which_key.add({
 		desc = "Keep only this tab",
 		mode = "n",
 	},
+	{
+		"<tab>",
+		"<cmd>tabnext<cr>",
+		desc = "Next tab",
+		mode = "n",
+	},
+	{
+		"<S-tab>",
+		"<cmd>tabprevious<cr>",
+		desc = "Previous tab",
+		mode = "n",
+	},
 
 	-- Window
 	{
@@ -301,12 +333,6 @@ which_key.add({
 		"<C-q>",
 		"<C-w>q",
 		desc = "Close window",
-		mode = "n",
-	},
-	{
-		"<C-x>",
-		"<C-w>o",
-		desc = "Close other windows",
 		mode = "n",
 	},
 	{
@@ -354,12 +380,6 @@ which_key.add({
 		mode = "i",
 	},
 	{
-		"<leader>vm",
-		"[mV]M",
-		desc = "Select method",
-		mode = "n",
-	},
-	{
 		"<leader>s",
 		[[:%s/\<<C-r><C-w>\>/<C-r><C-w>/gI<Left><Left><Left>]],
 		desc = "Search and replace word under cursor",
@@ -392,18 +412,6 @@ which_key.add({
 		mode = "n",
 	},
 	{
-		"<m-j>",
-		"<cmd>m +1<cr>",
-		desc = "Move line down",
-		mode = "n",
-	},
-	{
-		"<m-k>",
-		"<cmd>m -2<cr>",
-		desc = "Move line up",
-		mode = "n",
-	},
-	{
 		"<c-j>",
 		"<esc><cmd>t.<cr>a",
 		desc = "Copy line",
@@ -421,50 +429,6 @@ which_key.add({
 		desc = "Indent right",
 		mode = "v",
 	},
-	{
-		"<tab>",
-		"<cmd>tabnext<cr>",
-		desc = "Next tab",
-		mode = "n",
-	},
-	{
-		"<S-tab>",
-		"<cmd>tabprevious<cr>",
-		desc = "Previous tab",
-		mode = "n",
-	},
-
-	-- Tests
-	{
-		"<leader>tt",
-		"<cmd>Neotest run<cr>",
-		desc = "Test run",
-		mode = "n",
-	},
-	{
-		"<leader>th",
-		"<cmd>Neotest output<cr>",
-		desc = "Test output",
-		mode = "n",
-	},
-	{
-		"<leader>ts",
-		"<cmd>Neotest summary<cr>",
-		desc = "Tests summary",
-		mode = "n",
-	},
-	{
-		"<leader>tn",
-		"<cmd>Neotest jump next<cr>",
-		desc = "Next test",
-		mode = "n",
-	},
-	{
-		"<leader>tN",
-		"<cmd>Neotest jump prev<cr>",
-		desc = "Previous test",
-		mode = "n",
-	},
 
 	-- Misc
 	{
@@ -478,23 +442,5 @@ which_key.add({
 		"<cmd>nohlsearch<cr>",
 		desc = "Clear search",
 		mode = "n",
-	},
-	{
-		"<leader>`",
-		"<cmd>ToggleTerm<cr>",
-		desc = "Open terminal",
-		mode = "n",
-	},
-	{
-		"<leader>`",
-		"<cmd>ToggleTermSendVisualSelection<cr>",
-		desc = "Open terminal with selection",
-		mode = "v",
-	},
-	{
-		"<esc>",
-		"<C-\\><C-n>",
-		desc = "Exit terminal mode",
-		mode = "t",
 	},
 })
