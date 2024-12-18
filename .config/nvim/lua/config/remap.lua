@@ -198,8 +198,8 @@ which_key.add({
 	},
 	{
 		"<leader>ci",
-		"<cmd>CodeCompanion<cr>",
-		desc = "Code Companion Inline",
+		"<cmd>CodeCompanionActions<cr>",
+		desc = "Code Companion Actions",
 		mode = { "n", "v" },
 	},
 	{
