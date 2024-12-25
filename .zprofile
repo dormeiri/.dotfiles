@@ -4,10 +4,11 @@ eval "$(/opt/homebrew/bin/brew shellenv)"
 
 export EDITOR="nvim"
 
+# Shortcuts
 alias c="clear"
-
 alias v="nvim"
 alias v.="v ."
+alias d="docker"
 
 # zprofile
 export PROFILE_PATH="$HOME/.zprofile"
