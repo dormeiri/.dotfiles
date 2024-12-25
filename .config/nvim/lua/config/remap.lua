@@ -230,8 +230,8 @@ which_key.add({
 	},
 	{
 		"<leader>gdm",
-		"<cmd>DiffviewOpen master<cr>",
-		desc = "Git diff from master",
+		"<cmd>DiffviewOpen main<cr>",
+		desc = "Git diff from main",
 		mode = "n",
 	},
 	{
