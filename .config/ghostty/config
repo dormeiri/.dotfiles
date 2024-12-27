@@ -1,0 +1,9 @@
+theme = Dracula
+macos-titlebar-style = hidden
+window-decoration = false
+# There is a bug with `macos-titlebar-style = hidden`
+# See: https://github.com/ghostty-org/ghostty/issues/3535
+# macos-non-native-fullscreen = true
+copy-on-select = true
+quit-after-last-window-closed = true
+macos-option-as-alt = true

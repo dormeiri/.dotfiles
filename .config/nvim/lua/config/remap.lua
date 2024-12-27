@@ -292,13 +292,13 @@ which_key.add({
 		mode = "n",
 	},
 	{
-		"<tab>",
+		"tn",
 		"<cmd>tabnext<cr>",
 		desc = "Next tab",
 		mode = "n",
 	},
 	{
-		"<S-tab>",
+		"tp",
 		"<cmd>tabprevious<cr>",
 		desc = "Previous tab",
 		mode = "n",
