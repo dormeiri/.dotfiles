@@ -237,7 +237,7 @@ which_key.add({
 	{
 		"<leader>gl",
 		function()
-			require("gitgraph").draw({}, { all = true })
+			require("gitgraph").draw({}, { all = true, max_count = 500 })
 		end,
 		desc = "GitGraph - Draw",
 	},
