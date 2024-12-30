@@ -362,6 +362,11 @@ which_key.add({
 
 	-- Type fast
 	{
+		"<c-A>",
+		"<c-a>",
+		desc = "Increment number",
+	},
+	{
 		"<leader>p",
 		'"_dP',
 		desc = "Paste without copying",
