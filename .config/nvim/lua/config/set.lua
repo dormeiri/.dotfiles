@@ -39,14 +39,6 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 	end,
 })
 
--- Remap K
-vim.api.nvim_create_autocmd("BufEnter", {
-	group = create_augroup("remap_k"),
-	callback = function(event)
-		vim.api.nvim_buf_set_keymap(event.buf, "n", "K", "5k", { noremap = true, silent = true })
-	end,
-})
-
 -- Auto save
 vim.api.nvim_create_autocmd({ "BufLeave", "FocusLost", "VimLeavePre" }, {
 	group = create_augroup("autosave"),

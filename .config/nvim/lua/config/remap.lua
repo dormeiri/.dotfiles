@@ -2,6 +2,8 @@ local which_key = require("which-key")
 
 local harpoon = require("harpoon")
 
+vim.cmd([[cab cc CodeCompanion]])
+
 which_key.add({
 	-- Harpoon
 	{
@@ -191,19 +193,19 @@ which_key.add({
 
 	-- Copilot
 	{
-		"<leader>cc",
+		[[\\]],
 		"<cmd>CodeCompanionChat Toggle<cr>",
 		desc = "Code Companion Chat",
 		mode = { "n", "v" },
 	},
 	{
-		"<leader>ci",
+		[[\c]],
 		"<cmd>CodeCompanionActions<cr>",
 		desc = "Code Companion Actions",
 		mode = { "n", "v" },
 	},
 	{
-		"<leader>cp",
+		[[\a]],
 		"<cmd>CodeCompanionChat Add<cr>",
 		desc = "Code Companion Add",
 		mode = "v",
