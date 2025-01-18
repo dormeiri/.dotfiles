@@ -101,8 +101,9 @@ return {
 					"jsonls",
 					"yamlls",
 					"terraformls",
-					-- 'tailwindcss',
+					"tailwindcss",
 					"dockerls",
+					"gopls",
 				},
 				handlers = {
 					-- this first function is the "default handler"

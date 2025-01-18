@@ -1,5 +1,3 @@
-# Amazon Q pre block. Keep at the top of this file.
-[[ -f "${HOME}/Library/Application Support/amazon-q/shell/zprofile.pre.zsh" ]] && builtin source "${HOME}/Library/Application Support/amazon-q/shell/zprofile.pre.zsh"
 eval "$(/opt/homebrew/bin/brew shellenv)"
 
 export EDITOR="nvim"
@@ -32,12 +30,14 @@ alias tl="tmuxinator list"
 alias tprofile="$EDITOR $HOME/.tmux.conf"
 alias treload="tmux source-file $HOME/.tmux.conf"
 
+# Go
+export GO_PATH=~/go
+export PATH=$PATH:/$GO_PATH/bin
+
 # Port
 export PORT_LABS_DIR="$HOME/dev/port-labs"
 alias port-labs="cd $PORT_LABS_DIR"
 export AWS_PROFILE="port-admin"
 alias sso="aws sso login"
 alias kui="open http://localhost:8080"
-
-# Amazon Q post block. Keep at the bottom of this file.
-[[ -f "${HOME}/Library/Application Support/amazon-q/shell/zprofile.post.zsh" ]] && builtin source "${HOME}/Library/Application Support/amazon-q/shell/zprofile.post.zsh"
+alias port-start="concurrently yarn:admin:start:dev yarn:backend:start:dev yarn:action:start:dev"
