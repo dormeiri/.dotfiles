@@ -1,8 +1,9 @@
--- TODO: Fix this
 vim.defer_fn(function()
 	-- Diffview colorscheme
-	local colors = require("onedarkpro.helpers").get_colors()
-	vim.api.nvim_set_hl(0, "DiffChange", { fg = colors.git_change, bg = nil })
-	vim.api.nvim_set_hl(0, "DiffDelete", { fg = colors.git_delete, bg = nil })
-	vim.api.nvim_set_hl(0, "DiffAdd", { fg = colors.git_add, bg = nil })
+	local color = require("onedarkpro.helpers")
+	local colors = color.get_colors()
+	vim.api.nvim_set_hl(0, "DiffText", { bg = color.darken(colors.git_hunk_change_inline, 5) })
+	vim.api.nvim_set_hl(0, "DiffChange", { bg = "NONE", fg = "NONE" })
+	vim.api.nvim_set_hl(0, "DiffDelete", { bg = color.darken(colors.git_hunk_delete_inline, 15) })
+	vim.api.nvim_set_hl(0, "DiffAdd", { bg = color.darken(colors.git_hunk_add_inline, 15) })
 end, 0)
