@@ -185,9 +185,9 @@ return {
 
 					local modified = vim.bo[props.buf].modified
 
-					local colors = require("onedarkpro.helpers").get_preloaded_colors()
-					local guibg = colors.bg
-					local guifg = modified and colors.yellow or colors.fg
+					local colors = require("catppuccin.palettes").get_palette("mocha")
+					local guibg = colors.base
+					local guifg = modified and colors.yellow or colors.text
 
 					return {
 						" ",
@@ -222,7 +222,7 @@ return {
 			local section_c = {}
 
 			lualine.setup({
-				theme = "onedark",
+				theme = "catppuccin",
 				sections = {
 					lualine_b = section_b,
 					lualine_c = section_c,

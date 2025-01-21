@@ -1,4 +1,4 @@
-vim.cmd.colorscheme("onedark_dark")
+vim.cmd.colorscheme("catppuccin")
 
 vim.opt.clipboard = "unnamedplus" -- use system keyboard for yank
 
@@ -21,7 +21,7 @@ vim.opt.sidescroll = 0
 
 vim.opt.termguicolors = true
 
-vim.o.updatetime = 1000
+vim.o.updatetime = 10
 
 --------------------
 -- Automcommands --
