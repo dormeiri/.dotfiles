@@ -9,6 +9,10 @@ alias v.="v ."
 alias d="docker"
 alias awslocal="aws --endpoint-url http://localhost:4566"
 
+# fzf
+source <(fzf --zsh)
+alias fgb="gb | fzf --preview 'git show --color=always {-1}' --bind 'enter:become(git checkout {-1})'"
+
 # Git
 alias git_config_set_personal='git config user.email "dormeiri@gmail.com" && git config user.name "Dor Meiri"'
 
