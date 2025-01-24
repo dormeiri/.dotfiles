@@ -13,3 +13,6 @@ plugins=(
 
 
 source $ZSH/oh-my-zsh.sh
+
+source <(fzf --zsh)
+eval "$(zoxide init zsh)"

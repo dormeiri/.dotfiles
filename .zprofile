@@ -10,8 +10,35 @@ alias d="docker"
 alias awslocal="aws --endpoint-url http://localhost:4566"
 
 # fzf
-source <(fzf --zsh)
+alias fhistory="history | fzf"
 alias fgb="gb | fzf --preview 'git show --color=always {-1}' --bind 'enter:become(git checkout {-1})'"
+
+fpr() {
+    if [ $1 = '--help' ]; then
+        echo "Usage: fpr [author]"
+        echo "List PRs for the given author, or for the current user if no author is provided"
+        echo "Use the following key bindings:"
+        echo "  - Enter: checkout the selected PR"
+        echo "  - CTRL-O: open the selected PR in the browser"
+        echo "  - CTRL-Y: copy the URL of the selected PR to the clipboard"
+        return
+    fi
+
+    local BIND_ENTER='enter:become(echo {} | awk -F" " "{print \$NF}" | xargs git checkout)'
+    local BIND_CTRL_O='ctrl-o:become(echo {} | cut -d" " -f1 | xargs gh pr view -w)'
+    local BIND_CTRL_Y='ctrl-y:become(echo {} | cut -d" " -f1 | xargs gh pr view --json url --template "{{ .url }}" | pbcopy)'
+
+    gh pr list --author ${1:-@me} \
+        --json number,title,updatedAt,headRefName --template '{{range .}}{{tablerow (printf "#%v" .number | autocolor "green") .title (timeago .updatedAt) .headRefName}}{{end}}' \
+        | fzf \
+        --bind "$BIND_ENTER,$BIND_CTRL_O,$BIND_CTRL_Y" \
+        --preview 'echo {} | cut -d" " -f1  | xargs gh pr view' \
+        --header "Enter to checkout, CTRL-O to open, CTRL-Y to copy URL"
+}
+
+fgwt() {
+    cd $(git worktree list | fzf | cut -d' ' -f1)
+}
 
 # Git
 alias git_config_set_personal='git config user.email "dormeiri@gmail.com" && git config user.name "Dor Meiri"'
