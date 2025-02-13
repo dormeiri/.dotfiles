@@ -55,19 +55,11 @@ which_key.add({
 		mode = "n",
 	},
 	{
-		"<leader><tab>",
+		"<leader>5",
 		function()
-			harpoon:list():prev()
+			harpoon:list():select(5)
 		end,
-		desc = "Next Harpoon",
-		mode = "n",
-	},
-	{
-		"<leader><s-tab>",
-		function()
-			harpoon:list():next()
-		end,
-		desc = "Previous Harpoon",
+		desc = "Harpoon 5",
 		mode = "n",
 	},
 
@@ -276,31 +268,31 @@ which_key.add({
 
 	-- Tabs
 	{
-		"tt",
+		"<leader>tt",
 		"<cmd>tabnew<cr>",
 		desc = "New tab",
 		mode = "n",
 	},
 	{
-		"tq",
+		"<leader>tq",
 		"<cmd>tabclose<cr>",
 		desc = "Close tab",
 		mode = "n",
 	},
 	{
-		"to",
+		"<leader>to",
 		"<cmd>tabonly<cr>",
 		desc = "Keep only this tab",
 		mode = "n",
 	},
 	{
-		"tn",
+		"<leader><tab>",
 		"<cmd>tabnext<cr>",
 		desc = "Next tab",
 		mode = "n",
 	},
 	{
-		"tp",
+		"<leader><s-tab>",
 		"<cmd>tabprevious<cr>",
 		desc = "Previous tab",
 		mode = "n",
@@ -332,7 +324,7 @@ which_key.add({
 		mode = "n",
 	},
 	{
-		"<C-q>",
+		"<leader>q",
 		"<C-w>q",
 		desc = "Close window",
 		mode = "n",
@@ -438,12 +430,6 @@ which_key.add({
 	},
 
 	-- Misc
-	{
-		"<leader>qb",
-		"<cmd>%bd<cr>",
-		desc = "Delete all buffers",
-		mode = "n",
-	},
 	{
 		"<esc>",
 		"<cmd>nohlsearch<cr>",

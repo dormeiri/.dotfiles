@@ -10,7 +10,6 @@ alias d="docker"
 alias awslocal="aws --endpoint-url http://localhost:4566"
 
 # fzf
-alias fhistory="history | fzf"
 alias fgb="gb | fzf --preview 'git show --color=always {-1}' --bind 'enter:become(git checkout {-1})'"
 
 fpr() {
@@ -37,7 +36,11 @@ fpr() {
 }
 
 fgwt() {
-    cd $(git worktree list | fzf | cut -d' ' -f1)
+    local RESULT=$(git worktree list | fzf | cut -d" " -f1)
+    if [ -z "$RESULT" ]; then
+        return
+    fi
+    cd $RESULT
 }
 
 # Git
@@ -68,7 +71,27 @@ export PATH=$PATH:/$GO_PATH/bin
 # Port
 export PORT_LABS_DIR="$HOME/dev/port-labs"
 alias port-labs="cd $PORT_LABS_DIR"
+
 export AWS_PROFILE="port-admin"
 alias sso="aws sso login"
+
 alias kui="open http://localhost:8080"
-alias port-start="concurrently yarn:admin:start:dev yarn:backend:start:dev yarn:action:start:dev"
+
+alias port-start="concurrently yarn:admin:start:dev yarn:backend:start:dev yarn:action:start:dev yarn:integration:start:dev yarn:checklist:start:dev"
+
+port-rebuild() {
+    if [ -e package.json ]; then
+        echo "Cleaning project: $(pwd)"
+    else
+        echo "No package.json found in $(pwd)"
+        return
+    fi
+
+    read -q "ans?Are you sure? [y/N] "
+    if [[ $ans == "y" ]]; then
+        rm -rf **/node_modules **/dist **/build **/coverage
+        rm **/tsconfig.tsbuildinfo
+        yarn install
+        yarn pkg:build
+    fi
+}

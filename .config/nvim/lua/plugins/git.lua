@@ -50,4 +50,8 @@ return {
 			"sindrets/diffview.nvim",
 		},
 	},
+
+	{
+		"comatory/gh-co.nvim",
+	},
 }
