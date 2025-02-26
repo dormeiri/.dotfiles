@@ -9,6 +9,18 @@ alias v.="v ."
 alias d="docker"
 alias awslocal="aws --endpoint-url http://localhost:4566"
 
+# Docker
+docker-cleanup-runtime() {
+    docker rm -f $(docker ps -aq)
+    docker volume prune
+    docker network prune
+}
+
+docker-cleanup-images() {
+    docker rmi $(docker images -q)
+    docker builder prune
+}
+
 # fzf
 alias fgb="gb | fzf --preview 'git show --color=always {-1}' --bind 'enter:become(git checkout {-1})'"
 
@@ -46,6 +58,8 @@ fgwt() {
 # Git
 alias git_config_set_personal='git config user.email "dormeiri@gmail.com" && git config user.name "Dor Meiri"'
 alias grbii='git fetch origin $(git_main_branch) && git rebase -i `git merge-base HEAD origin/$(git_main_branch)`'
+alias grbomm='git fetch origin $(git_main_branch) && git rebase origin/$(git_main_branch)'
+alias gbcopy='current_branch | pbcopy'
 
 # zprofile
 export PROFILE_PATH="$HOME/.zprofile"
