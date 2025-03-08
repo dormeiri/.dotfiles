@@ -36,11 +36,6 @@ return {
 		},
 	},
 
-	-- {
-	-- 	"m4xshen/autoclose.nvim",
-	-- 	opts = {},
-	-- },
-
 	{
 		"MagicDuck/grug-far.nvim",
 		opts = {},
@@ -54,5 +49,12 @@ return {
 			local harpoon = require("harpoon")
 			harpoon:setup()
 		end,
+	},
+
+	{
+		"yochem/jq-playground.nvim",
+		opt = {
+			cmd = "jq",
+		},
 	},
 }

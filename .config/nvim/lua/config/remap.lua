@@ -5,6 +5,26 @@ local harpoon = require("harpoon")
 vim.cmd([[cab cc CodeCompanion]])
 
 which_key.add({
+	-- javascript
+	{
+		"<leader>cjs",
+		"<cmd>w !node<cr>",
+		desc = "Run current file in Node.js",
+		mode = "n",
+	},
+	{
+		"<leader>cjs",
+		"<cmd>'<,'>w !node<cr>",
+		desc = "Run current selection in Node.js",
+		mode = "v",
+	},
+	{
+		"<leader>cjq",
+		vim.cmd.JqPlayground,
+		desc = "Run JQ Playground",
+		mode = "n",
+	},
+
 	-- Harpoon
 	{
 		"<leader>a",
