@@ -139,6 +139,7 @@ return {
 					"go",
 					"sql",
 					"regex",
+					"jq",
 				},
 				sync_install = false,
 				highlight = { enable = true },
