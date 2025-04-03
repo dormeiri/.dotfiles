@@ -48,11 +48,17 @@ fpr() {
 }
 
 fgwt() {
-    local RESULT=$(git worktree list | fzf | cut -d" " -f1)
-    if [ -z "$RESULT" ]; then
-        return
+    local BIND_ENTER='enter:become(echo {} | cut -d" " -f1 | xargs echo)'
+    local BIND_CTRL_Y='ctrl-y:become(echo {} | cut -d" " -f1 | xargs echo | pbcopy)'
+    local BIND_CTRL_D='ctrl-d:become(echo {} | cut -d" " -f1 | xargs git worktree remove)'
+
+    local RESULT=$(git worktree list | fzf \
+        --bind "$BIND_ENTER,$BIND_CTRL_Y,$BIND_CTRL_D" \
+        --header "Enter to cd, CTRL-Y to copy path, CTRL-D to remove")
+
+    if [ -n "$RESULT" ]; then
+        cd $RESULT
     fi
-    cd $RESULT
 }
 
 # Git
@@ -93,19 +99,28 @@ alias sso="aws sso login"
 alias kui="open http://localhost:8080"
 
 alias port-start="concurrently yarn:admin:start:dev yarn:backend:start:dev yarn:action:start:dev yarn:integration:start:dev yarn:checklist:start:dev"
+alias port-wait="wait-on http://localhost:3000 http://localhost:3002"
 
-port-rebuild() {
+port-clean() {
     if [ -e package.json ]; then
         echo "Cleaning project: $(pwd)"
     else
         echo "No package.json found in $(pwd)"
-        return
+        return false
     fi
 
     read -q "ans?Are you sure? [y/N] "
     if [[ $ans == "y" ]]; then
         rm -rf **/node_modules **/dist **/build **/coverage
         rm **/tsconfig.tsbuildinfo
+        return true
+    fi
+
+    return false
+}
+
+port-rebuild() {
+    if [[ port-clean ]]; then
         yarn install
         yarn pkg:build
     fi
