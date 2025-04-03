@@ -104,7 +104,7 @@ which_key.add({
 	},
 	{
 		"<leader>F",
-		"<cmd>Grug<cr>",
+		"<cmd>GrugFar<cr>",
 		desc = "Search and replace",
 		mode = "n",
 	},

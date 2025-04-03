@@ -38,7 +38,12 @@ return {
 
 	{
 		"MagicDuck/grug-far.nvim",
-		opts = {},
+		opts = {
+			transient = true,
+			maxSearchMatches = 100,
+			debounceMs = 1000,
+			minSearchChars = 3,
+		},
 	},
 
 	{
