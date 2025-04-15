@@ -98,14 +98,51 @@ which_key.add({
 	},
 	{
 		"<leader>f",
-		"<cmd>Telescope live_grep_args<cr>",
-		desc = "Live grep",
+		"<cmd>GrugFar<cr>",
+		desc = "Search and replace",
+		mode = "n",
+	},
+	{
+		"<leader>f",
+		function()
+			require("grug-far").with_visual_selection({
+				prefills = {
+					paths = vim.fn.expand("%"),
+				},
+			})
+		end,
+		desc = "Search and replace with visual selection in the current file",
+		mode = "v",
+	},
+	{
+		"<leader><C-f>",
+		function()
+			require("grug-far").open({ engine = "astgrep" })
+		end,
+		desc = "Search and replace with astgrep",
 		mode = "n",
 	},
 	{
 		"<leader>F",
-		"<cmd>GrugFar<cr>",
-		desc = "Search and replace",
+		function()
+			require("grug-far").open({
+				visualSelectionUsage = "operate-within-range",
+			})
+		end,
+		desc = "grug-far: Search within range",
+		mode = "v",
+	},
+	{
+		"<leader>F",
+		function()
+			require("grug-far").open({
+				prefills = {
+					search = vim.fn.expand("<cword>"),
+					paths = vim.fn.expand("%"),
+				},
+			})
+		end,
+		desc = "Search and replace current word in current file",
 		mode = "n",
 	},
 	{
@@ -237,9 +274,15 @@ which_key.add({
 		mode = "n",
 	},
 	{
+		"<leader>gdh",
+		"<cmd>DiffviewFileHistory<cr>",
+		desc = "Git diff history",
+		mode = "n",
+	},
+	{
 		"<leader>gdd",
-		"<cmd>DiffviewOpen<cr>",
-		desc = "Git diff",
+		"<cmd>DiffviewFileHistory %<cr>",
+		desc = "Git diff history",
 		mode = "n",
 	},
 	{
