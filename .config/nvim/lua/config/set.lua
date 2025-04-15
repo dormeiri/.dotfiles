@@ -23,17 +23,6 @@ vim.opt.termguicolors = true
 
 vim.o.updatetime = 10
 
----------
--- UFO --
----------
-
-vim.o.foldcolumn = "0"
-vim.o.foldlevel = 99
-vim.o.foldlevelstart = 99
-vim.o.foldnestmax = 1
-vim.o.foldenable = true
-vim.o.fillchars = [[eob: ,fold: ,foldopen:,foldsep: ,foldclose:]]
-
 --------------------
 -- Automcommands --
 --------------------
