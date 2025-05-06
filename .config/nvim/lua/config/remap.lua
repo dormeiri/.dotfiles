@@ -2,29 +2,7 @@ local which_key = require("which-key")
 
 local harpoon = require("harpoon")
 
-vim.cmd([[cab cc CodeCompanion]])
-
 which_key.add({
-	-- javascript
-	{
-		"<leader>cjs",
-		"<cmd>w !node<cr>",
-		desc = "Run current file in Node.js",
-		mode = "n",
-	},
-	{
-		"<leader>cjs",
-		"<cmd>'<,'>w !node<cr>",
-		desc = "Run current selection in Node.js",
-		mode = "v",
-	},
-	{
-		"<leader>cjq",
-		vim.cmd.JqPlayground,
-		desc = "Run JQ Playground",
-		mode = "n",
-	},
-
 	-- Harpoon
 	{
 		"<leader>a",
@@ -91,7 +69,7 @@ which_key.add({
 		mode = "n",
 	},
 	{
-		"<leader>r",
+		"<leader>o",
 		"<cmd>Telescope oldfiles<cr>",
 		desc = "Recent files",
 		mode = "n",
@@ -146,24 +124,6 @@ which_key.add({
 		mode = "n",
 	},
 	{
-		"<leader>b",
-		"<cmd>Telescope buffers sort_mru=true<cr>",
-		desc = "Buffers",
-		mode = "n",
-	},
-	{
-		"<leader>d",
-		"<cmd>Telescope diff diff_current<cr>",
-		desc = "Diff",
-		mode = "n",
-	},
-	{
-		"<leader>-",
-		"<cmd>Telescope project<cr>",
-		desc = "Projects",
-		mode = "n",
-	},
-	{
 		"_",
 		"<cmd>Telescope file_browser<cr>",
 		desc = "Open file browser in current folder",
@@ -213,6 +173,14 @@ which_key.add({
 		desc = "Type definitions (Telescope)",
 		mode = "n",
 	},
+	{
+		"<leader>s",
+		function()
+			require("telescope.builtin").lsp_document_symbols({ symbols = "Function" })
+		end,
+		desc = "Document symbols (Telescope)",
+		mode = "n",
+	},
 
 	-- LSP
 	{
@@ -240,33 +208,7 @@ which_key.add({
 		mode = "n",
 	},
 
-	-- Copilot
-	{
-		[[\\]],
-		"<cmd>CodeCompanionChat Toggle<cr>",
-		desc = "Code Companion Chat",
-		mode = { "n", "v" },
-	},
-	{
-		[[\c]],
-		"<cmd>CodeCompanionActions<cr>",
-		desc = "Code Companion Actions",
-		mode = { "n", "v" },
-	},
-	{
-		[[\a]],
-		"<cmd>CodeCompanionChat Add<cr>",
-		desc = "Code Companion Add",
-		mode = "v",
-	},
-
 	-- Git
-	{
-		"<leader>gb",
-		"<cmd>Telescope git_branches<cr>",
-		desc = "Git branches",
-		mode = "n",
-	},
 	{
 		"<leader>gs",
 		"<cmd>Neogit<cr>",
@@ -274,15 +216,9 @@ which_key.add({
 		mode = "n",
 	},
 	{
-		"<leader>gdh",
-		"<cmd>DiffviewFileHistory<cr>",
-		desc = "Git diff history",
-		mode = "n",
-	},
-	{
 		"<leader>gdd",
 		"<cmd>DiffviewFileHistory %<cr>",
-		desc = "Git diff history",
+		desc = "Git diff history - this file",
 		mode = "n",
 	},
 	{
@@ -419,6 +355,11 @@ which_key.add({
 
 	-- Type fast
 	{
+		"<c-X>",
+		"<c-x>",
+		desc = "Decrease number",
+	},
+	{
 		"<c-A>",
 		"<c-a>",
 		desc = "Increment number",
@@ -442,7 +383,7 @@ which_key.add({
 		mode = "i",
 	},
 	{
-		"<leader>s",
+		"<leader>r",
 		[[:%s/\<<C-r><C-w>\>/<C-r><C-w>/gI<Left><Left><Left>]],
 		desc = "Search and replace word under cursor",
 		mode = "n",

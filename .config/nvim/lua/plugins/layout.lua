@@ -33,12 +33,6 @@ return {
 	},
 
 	{
-		"akinsho/toggleterm.nvim",
-		version = "*",
-		opts = {},
-	},
-
-	{
 		"folke/noice.nvim",
 		event = "VeryLazy",
 		dependencies = {
@@ -234,18 +228,9 @@ return {
 		"nvim-telescope/telescope.nvim",
 		dependencies = {
 			"nvim-lua/plenary.nvim",
-			{
-				"nvim-telescope/telescope-live-grep-args.nvim",
-				-- This will not install any breaking changes.
-				-- For major updates, this must be adjusted manually.
-				version = "^1.0.0",
-			},
-			"nvim-telescope/telescope-project.nvim",
 			"nvim-telescope/telescope-file-browser.nvim",
 		},
 		config = function()
-			local actions = require("telescope.actions")
-			local project_actions = require("telescope._extensions.project.actions")
 			local telescope = require("telescope")
 
 			telescope.setup({
@@ -268,21 +253,10 @@ return {
 						previewer = false,
 						hidden = true,
 					},
-					buffers = {
-						mappings = {
-							i = { ["<C-d>"] = actions.delete_buffer },
-						},
-					},
 					oldfiles = {
 						theme = "dropdown",
 						only_cwd = true,
 						previewer = false,
-					},
-					git_branches = {
-						theme = "dropdown",
-						mappings = {
-							i = { ["<cr>"] = actions.git_switch_branch },
-						},
 					},
 				},
 				extensions = {
@@ -291,26 +265,16 @@ return {
 						hidden = true,
 						display_stat = false,
 					},
-					project = {
-						theme = "dropdown",
-						on_project_selected = project_actions.change_working_directory,
-					},
 				},
 			})
+
 			telescope.load_extension("fzf")
-			telescope.load_extension("live_grep_args")
 			telescope.load_extension("file_browser")
-			telescope.load_extension("project")
-			telescope.load_extension("rest")
 		end,
 	},
 
 	{
 		"nvim-telescope/telescope-fzf-native.nvim",
 		build = "make",
-	},
-
-	{
-		"rest-nvim/rest.nvim",
 	},
 }
