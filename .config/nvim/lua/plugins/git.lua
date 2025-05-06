@@ -13,11 +13,13 @@ return {
 
 	{
 		"lewis6991/gitsigns.nvim",
+		event = "VeryLazy",
 		opts = {},
 	},
 
 	{
 		"isakbm/gitgraph.nvim",
+		event = "VeryLazy",
 		dependencies = { "sindrets/diffview.nvim" },
 		opts = {
 			hooks = {
@@ -35,15 +37,12 @@ return {
 
 	{
 		"NeogitOrg/neogit",
+		event = "VeryLazy",
 		dependencies = {
 			"nvim-lua/plenary.nvim",
 			"sindrets/diffview.nvim",
 			"nvim-telescope/telescope.nvim",
 		},
 		config = true,
-	},
-
-	{
-		"comatory/gh-co.nvim",
 	},
 }

@@ -7,6 +7,7 @@ return {
 	{
 		"Wansmer/treesj",
 		requires = { "nvim-treesitter/nvim-treesitter" },
+		event = "VeryLazy",
 		opts = {},
 	},
 
@@ -20,6 +21,7 @@ return {
 
 	{
 		"MagicDuck/grug-far.nvim",
+		event = "VeryLazy",
 		opts = {
 			transient = true,
 			maxSearchMatches = 100,
@@ -30,6 +32,7 @@ return {
 
 	{
 		"ThePrimeagen/harpoon",
+		event = "VeryLazy",
 		branch = "harpoon2",
 		dependencies = { "nvim-lua/plenary.nvim" },
 		config = function()
