@@ -11,6 +11,7 @@ return {
 
 	{
 		"MeanderingProgrammer/render-markdown.nvim",
+		event = "VeryLazy",
 		ft = {
 			"markdown",
 			"codecompanion",
@@ -19,6 +20,7 @@ return {
 
 	{
 		"RRethy/vim-illuminate",
+		event = "VeryLazy",
 		config = function()
 			require("illuminate").configure({})
 		end,
@@ -28,6 +30,7 @@ return {
 		-- I like it because of the code comments highlighting
 		-- I don't really use its features
 		"folke/todo-comments.nvim",
+		event = "VeryLazy",
 		dependencies = { "nvim-lua/plenary.nvim" },
 		opts = {},
 	},
@@ -65,6 +68,7 @@ return {
 
 	{
 		"folke/trouble.nvim",
+		event = "VeryLazy",
 		opts = {
 			focus = true,
 			win = {
@@ -143,6 +147,7 @@ return {
 
 	{
 		"b0o/incline.nvim",
+		event = "VeryLazy",
 		config = function()
 			require("incline").setup({
 				window = {
@@ -190,12 +195,11 @@ return {
 				end,
 			})
 		end,
-		-- Optional: Lazy load Incline
-		event = "VeryLazy",
 	},
 
 	{
 		"nvim-lualine/lualine.nvim",
+		event = "VeryLazy",
 		dependencies = {
 			"nvim-tree/nvim-web-devicons",
 			"yavorski/lualine-macro-recording.nvim",
@@ -229,6 +233,7 @@ return {
 		dependencies = {
 			"nvim-lua/plenary.nvim",
 			"nvim-telescope/telescope-file-browser.nvim",
+			"nvim-telescope/telescope-fzf-native.nvim",
 		},
 		config = function()
 			local telescope = require("telescope")
