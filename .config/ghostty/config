@@ -7,3 +7,4 @@ window-decoration = false
 copy-on-select = true
 quit-after-last-window-closed = true
 macos-option-as-alt = true
+keybind = shift+enter=text:\n

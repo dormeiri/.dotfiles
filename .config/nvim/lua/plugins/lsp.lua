@@ -25,7 +25,12 @@ return {
 					completeopt = "menu,menuone,noinsert",
 				},
 				sources = {
-					{ name = "nvim_lsp" },
+					{
+						name = "nvim_lsp",
+					},
+					per_filetype = {
+						codecompanion = { "codecompanion" },
+					},
 				},
 				mapping = cmp.mapping.preset.insert({
 					["<CR>"] = cmp.mapping.confirm({ select = true }),
