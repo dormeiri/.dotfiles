@@ -432,12 +432,23 @@ which_key.add({
 		desc = "Indent right",
 		mode = "v",
 	},
-
-	-- Misc
 	{
 		"<esc>",
 		"<cmd>nohlsearch<cr>",
 		desc = "Clear search",
+		mode = "n",
+	},
+	-- AI
+	{
+		"<leader>\\",
+		"<cmd>'<,'>CodeCompanion<cr>",
+		desc = "CodeCompanion (visual selection)",
+		mode = "v",
+	},
+	{
+		"<leader>\\",
+		"<cmd>CodeCompanionChat<cr>",
+		desc = "CodeCompanionChat",
 		mode = "n",
 	},
 })
