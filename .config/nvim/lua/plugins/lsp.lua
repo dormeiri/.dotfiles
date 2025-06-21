@@ -207,4 +207,16 @@ return {
 		"brenoprata10/nvim-highlight-colors",
 		opts = {},
 	},
+
+	{
+		"chrisgrieser/nvim-chainsaw",
+		event = "VeryLazy",
+		opts = {
+			logStatements = {
+				emojiLog = {
+					javascript = 'console.log(new Date(), "{{marker}} {{emoji}}", {{var}});',
+				},
+			},
+		},
+	},
 }
