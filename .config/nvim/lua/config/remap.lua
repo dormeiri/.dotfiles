@@ -1,8 +1,26 @@
 local which_key = require("which-key")
 
 local harpoon = require("harpoon")
+local chainsaw = require("chainsaw")
 
 which_key.add({
+	-- Chainsaw
+	{
+		"<leader>ll",
+		function()
+			chainsaw:emojiLog()
+		end,
+		desc = "Chainsaw",
+		mode = { "n", "v" },
+	},
+	{
+		"<leader>lr",
+		function()
+			chainsaw:removeLogs()
+		end,
+		desc = "Chainsaw",
+		mode = { "n", "v" },
+	},
 	-- Harpoon
 	{
 		"<leader>a",
