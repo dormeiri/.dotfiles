@@ -23,25 +23,12 @@ The 127.0.0.1 of my terminal! If you’re reading this, you’re probably either
 2. Run this
 
 ```bash
-brew install ghostty fd ripgrep git gh nvm neovim pyenv tmux fzf yazi stow
+brew install zsh ghostty fd ripgrep git gh nvm neovim pyenv tmux fzf yazi stow
 npm install -g yarn concurrently wait-on
-```
-
-3. Login to GitHub CLI
-
-```bash
+chsh -s $(which zsh)
 gh auth login
-```
-
-4. Clone this repo
-
-```bash
 gh repo clone dormeiri/.dotfiles ~/.dotfiles
-```
-
-5. Stow it
-
-```bash
+touch ~/.credentials
 cd ~/.dotfiles
 stow .
 ```
