@@ -3,6 +3,7 @@ return {
 		"github/copilot.vim",
 		event = "VeryLazy",
 	},
+
 	{
 		"ravitemer/mcphub.nvim",
 		dependencies = {
@@ -13,6 +14,7 @@ return {
 			require("mcphub").setup()
 		end,
 	},
+
 	{
 		"olimorris/codecompanion.nvim",
 		opts = function()

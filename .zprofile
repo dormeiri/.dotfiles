@@ -61,7 +61,11 @@ fpr() {
         --header "Enter to checkout, CTRL-O to open, CTRL-Y to copy URL"
 }
 
-fgwt() {
+wta() {
+    git worktree add $HOME/dev/worktrees/${PWD##*}/$1
+}
+
+wtf() {
     local BIND_ENTER='enter:become(echo {} | cut -d" " -f1 | xargs echo)'
     local BIND_CTRL_Y='ctrl-y:become(echo {} | cut -d" " -f1 | xargs echo | pbcopy)'
     local BIND_CTRL_D='ctrl-d:become(echo {} | cut -d" " -f1 | xargs git worktree remove)'
