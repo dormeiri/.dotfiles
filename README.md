@@ -23,7 +23,7 @@ The 127.0.0.1 of my terminal! If you’re reading this, you’re probably either
 2. Run this
 
 ```bash
-brew install ghostty fd ripgrep git gh nvm neovim pyenv tmux fzf yazi
+brew install ghostty fd ripgrep git gh nvm neovim pyenv tmux fzf yazi stow
 npm install -g yarn concurrently wait-on
 ```
 
