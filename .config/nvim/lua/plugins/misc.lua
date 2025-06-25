@@ -40,4 +40,10 @@ return {
 			harpoon:setup()
 		end,
 	},
+
+	{
+		"echasnovski/mini.align",
+		version = "*",
+		opts = {},
+	},
 }
