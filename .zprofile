@@ -11,6 +11,7 @@ alias v.="v ."
 alias d="docker"
 alias awslocal="aws --endpoint-url http://localhost:4566"
 alias ghd="gh dash"
+alias "?"="opencode run"
 
 # Docker
 docker-cleanup-runtime() {
