@@ -4,7 +4,53 @@ export EDITOR="nvim"
 
 source $HOME/.credentials
 
+# YOLO
+
+first-yolo() {
+    update-all
+
+    brew install \
+        ghostty \
+        fd \
+        ripgrep \
+        nvm \
+        neovim \
+        pyenv \
+        tmux \
+        fzf \
+        yazi \
+        stow \
+        yarn \
+        sst/tap/opencode
+
+    gh extension install dlvhdr/gh-dash
+    gh extension install gh-copilot
+}
+
+yolo() {
+    brew update
+    brew upgrade
+    brew cleanup -s
+
+    gh extension upgrade --all
+
+    npm install -g \
+        mcp-hub@latest \
+        concurrently@latest \
+        wait-on@latest
+
+
+    nvim --headless "+Lazy! sync" +qa
+    nvim --headless \
+		+MasonUpdate \
+		+TSUpdateSync \
+		+UpdateRemotePlugins \
+		+'helptags ALL' \
+		+qa
+}
+
 # Shortcuts
+
 alias c="clear"
 alias v="nvim"
 alias v.="v ."
@@ -14,6 +60,7 @@ alias ghd="gh dash"
 alias "?"="opencode run"
 
 # Docker
+
 docker-cleanup-runtime() {
     docker rm -f $(docker ps -aq)
     docker volume prune
@@ -27,7 +74,7 @@ docker-cleanup-images() {
 
 # yazi
 
-function o() {
+o() {
 	local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
 	yazi "$@" --cwd-file="$tmp"
 	if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
@@ -37,6 +84,7 @@ function o() {
 }
 
 # fzf
+
 alias fgb="gb | fzf --preview 'git show --color=always {-1}' --bind 'enter:become(git checkout {-1})'"
 
 fpr() {
@@ -81,20 +129,24 @@ wtf() {
 }
 
 # Git
+
 alias git_config_set_personal='git config user.email "dormeiri@gmail.com" && git config user.name "Dor Meiri"'
 alias grbii='git fetch origin $(git_main_branch) && git rebase -i `git merge-base HEAD origin/$(git_main_branch)`'
 alias grbomm='git fetch origin $(git_main_branch) && git rebase origin/$(git_main_branch)'
 alias gbcopy='current_branch | pbcopy'
 
 # zprofile
+
 export PROFILE_PATH="$HOME/.zprofile"
 alias zprofile="$EDITOR $PROFILE_PATH"
 alias zreload="source $PROFILE_PATH"
 
 # ghostty
+
 alias gprofile="$EDITOR $HOME/.config/ghostty/config"
 
 # Tmux
+
 alias t="tmux"
 alias t8r="tmuxinator"
 alias trs="tmux rename-session"
@@ -105,10 +157,12 @@ alias tprofile="$EDITOR $HOME/.tmux.conf"
 alias treload="tmux source-file $HOME/.tmux.conf"
 
 # Go
+
 export GO_PATH=~/go
 export PATH=$PATH:/$GO_PATH/bin
 
 # Port
+
 export PORT_LABS_DIR="$HOME/dev/port-labs"
 alias port-labs="cd $PORT_LABS_DIR"
 
