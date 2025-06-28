@@ -30,12 +30,7 @@ gh repo clone dormeiri/.dotfiles ~/.dotfiles
 touch ~/.credentials
 cd ~/.dotfiles
 stow .
-zsh 
-```
-
-In ZSH, run:
-
-```bash
+source ~/.zprofile
 first-yolo
 ```
 
