@@ -4,29 +4,6 @@ export EDITOR="nvim"
 
 source $HOME/.credentials
 
-# YOLO
-
-first-yolo() {
-    update-all
-
-    brew install \
-        ghostty \
-        fd \
-        ripgrep \
-        nvm \
-        neovim \
-        pyenv \
-        tmux \
-        fzf \
-        yazi \
-        stow \
-        yarn \
-        sst/tap/opencode
-
-    gh extension install dlvhdr/gh-dash
-    gh extension install gh-copilot
-}
-
 yolo() {
     brew update
     brew upgrade
@@ -47,6 +24,8 @@ yolo() {
 		+UpdateRemotePlugins \
 		+'helptags ALL' \
 		+qa
+
+    echo "✨ Done"
 }
 
 # Shortcuts
@@ -57,7 +36,17 @@ alias v.="v ."
 alias d="docker"
 alias awslocal="aws --endpoint-url http://localhost:4566"
 alias ghd="gh dash"
-alias "?"="opencode run"
+
+q() {
+    if [ -n "$1" ]; then
+        opencode run $@
+    else
+        opencode
+    fi
+}
+alias "?"="q"
+
+alias dotfiles="cd $HOME/.dotfiles"
 
 # Docker
 
@@ -164,7 +153,9 @@ export PATH=$PATH:/$GO_PATH/bin
 # Port
 
 export PORT_LABS_DIR="$HOME/dev/port-labs"
+
 alias port-labs="cd $PORT_LABS_DIR"
+alias port-mono="cd $PORT_LABS_DIR/port"
 
 export AWS_PROFILE="port-admin"
 alias sso="aws sso login"
