@@ -7,20 +7,5 @@
   "disabled_providers": [
     "amazon-bedrock"
   ],
-  "mcp": {
-    "thinking": {
-      "type": "local",
-      "command": [
-        "docker",
-        "run",
-        "--rm",
-        "-i",
-        "mcp/sequentialthinking@latest"
-      ]
-    },
-    "context7": {
-      "type": "remote",
-      "url": "https://mcp.context7.com/sse"
-    }
-  }
+  "mcp": {}
 }

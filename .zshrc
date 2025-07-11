@@ -16,3 +16,5 @@ plugins=(
 source $ZSH/oh-my-zsh.sh
 
 source <(fzf --zsh)
+
+autoload -U compinit; compinit

@@ -214,7 +214,7 @@ return {
 		opts = {
 			logStatements = {
 				emojiLog = {
-					javascript = 'console.log(new Date(), "{{marker}} {{emoji}}", {{var}});',
+					javascript = 'console.log(new Date(), "DORTEST {{marker}} {{emoji}}", {{var}});',
 				},
 			},
 		},

@@ -1,7 +1,8 @@
 return {
 	{
 		"folke/which-key.nvim",
-		lazy = true,
+		lazy = false,
+		priority = 1000,
 	},
 
 	{

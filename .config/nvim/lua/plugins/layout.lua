@@ -1,12 +1,10 @@
 return {
 	{
 		"nvim-tree/nvim-web-devicons",
-		lazy = true,
 	},
 
 	{
 		"stevearc/dressing.nvim",
-		event = "VeryLazy",
 	},
 
 	{
@@ -147,7 +145,6 @@ return {
 
 	{
 		"b0o/incline.nvim",
-		event = "VeryLazy",
 		config = function()
 			require("incline").setup({
 				window = {
@@ -199,7 +196,6 @@ return {
 
 	{
 		"nvim-lualine/lualine.nvim",
-		event = "VeryLazy",
 		dependencies = {
 			"nvim-tree/nvim-web-devicons",
 			"yavorski/lualine-macro-recording.nvim",
@@ -207,21 +203,18 @@ return {
 		config = function()
 			local lualine = require("lualine")
 
-			local section_b = lualine.get_config().sections.lualine_b
-			table.insert(section_b, 1, function()
-				return vim.api.nvim_call_function("fnamemodify", { vim.loop.cwd(), ":t" })
-			end)
-
-			local section_c = {}
-
 			lualine.setup({
 				theme = "catppuccin",
 				sections = {
-					lualine_b = section_b,
-					lualine_c = section_c,
-					lualine_x = { "filetype", "macro_recording" },
+					lualine_b = {},
+					lualine_c = { "macro_recording", "searchcount" },
+					lualine_x = { "filetype" },
+					lualine_y = { "branch", "diff" },
+					lualine_z = {},
 				},
 				options = {
+					section_separators = "",
+					component_separators = "",
 					globalstatus = true,
 				},
 			})
@@ -238,9 +231,33 @@ return {
 		config = function()
 			local telescope = require("telescope")
 
+			vim.keymap.set(
+				"n",
+				"<leader><leader>",
+				"<cmd>Telescope find_files<cr>",
+				{ desc = "Find files (Telescope)" }
+			)
+			vim.keymap.set("n", "<leader>o", "<cmd>Telescope oldfiles<cr>", { desc = "Recent files" })
+			vim.keymap.set("n", "_", "<cmd>Telescope file_browser<cr>", { desc = "Open file browser in root" })
+			vim.keymap.set(
+				"n",
+				"-",
+				"<cmd>Telescope file_browser path=%:p:h select_buffer=true<cr>",
+				{ desc = "Open file browser in root" }
+			)
+
 			telescope.setup({
 				defaults = {
-					file_ignore_patterns = { ".git/" },
+					file_ignore_patterns = {
+						".git/",
+						"node_modules/",
+						"vendor/",
+						"%.lock",
+						"%.png",
+						"%.jpg",
+						"%.jpeg",
+						"%.gif",
+					},
 					path_display = { "filename_first" },
 					dynamic_preview_title = true,
 					results_title = false,
