@@ -81,18 +81,6 @@ which_key.add({
 
 	-- Telescope
 	{
-		"<leader><leader>",
-		"<cmd>Telescope find_files<cr>",
-		desc = "Find file",
-		mode = "n",
-	},
-	{
-		"<leader>o",
-		"<cmd>Telescope oldfiles<cr>",
-		desc = "Recent files",
-		mode = "n",
-	},
-	{
 		"<leader>f",
 		"<cmd>GrugFar<cr>",
 		desc = "Search and replace",
@@ -139,18 +127,6 @@ which_key.add({
 			})
 		end,
 		desc = "Search and replace current word in current file",
-		mode = "n",
-	},
-	{
-		"_",
-		"<cmd>Telescope file_browser<cr>",
-		desc = "Open file browser in current folder",
-		mode = "n",
-	},
-	{
-		"-",
-		"<cmd>Telescope file_browser path=%:p:h select_buffer=true<cr>",
-		desc = "Open file browser in root",
 		mode = "n",
 	},
 

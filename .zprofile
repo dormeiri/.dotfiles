@@ -25,6 +25,8 @@ yolo() {
 		+'helptags ALL' \
 		+qa
 
+    devbox version update
+
     echo "✨ Done"
 }
 

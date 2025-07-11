@@ -29,9 +29,12 @@ brew install \
     yazi \
     stow \
     yarn \
-    sst/tap/opencode
+    sst/tap/opencode \
+    gcalcli
 
 gh extension install dlvhdr/gh-dash
 gh extension install gh-copilot
+
+curl -fsSL https://get.jetify.com/devbox | bash
 
 echo "✨ Setup complete! Restart your terminal to apply changes"
