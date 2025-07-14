@@ -3,6 +3,7 @@ eval "$(/opt/homebrew/bin/brew shellenv)"
 export EDITOR="nvim"
 
 source $HOME/.credentials
+source $HOME/.portfile
 
 yolo() {
     brew update
@@ -38,30 +39,12 @@ alias v.="v ."
 alias d="docker"
 alias awslocal="aws --endpoint-url http://localhost:4566"
 alias ghd="gh dash"
-
-q() {
-    if [ -n "$1" ]; then
-        opencode run $@
-    else
-        opencode
-    fi
-}
-alias "?"="q"
-
 alias dotfiles="cd $HOME/.dotfiles"
+alias gprofile="$EDITOR $HOME/.config/ghostty/config"
 
-# Docker
-
-docker-cleanup-runtime() {
-    docker rm -f $(docker ps -aq)
-    docker volume prune
-    docker network prune
-}
-
-docker-cleanup-images() {
-    docker rmi $(docker images -q)
-    docker builder prune
-}
+export PROFILE_PATH="$HOME/.zprofile"
+alias zprofile="$EDITOR $PROFILE_PATH"
+alias zreload="source $PROFILE_PATH"
 
 # yazi
 
@@ -126,68 +109,37 @@ alias grbii='git fetch origin $(git_main_branch) && git rebase -i `git merge-bas
 alias grbomm='git fetch origin $(git_main_branch) && git rebase origin/$(git_main_branch)'
 alias gbcopy='current_branch | pbcopy'
 
-# zprofile
-
-export PROFILE_PATH="$HOME/.zprofile"
-alias zprofile="$EDITOR $PROFILE_PATH"
-alias zreload="source $PROFILE_PATH"
-
-# ghostty
-
-alias gprofile="$EDITOR $HOME/.config/ghostty/config"
-
 # Tmux
 
 alias t="tmux"
-alias t8r="tmuxinator"
-alias trs="tmux rename-session"
-alias ta="tmux attach"
-alias ts="tmuxinator start"
-alias tl="tmuxinator list"
 alias tprofile="$EDITOR $HOME/.tmux.conf"
 alias treload="tmux source-file $HOME/.tmux.conf"
+
+# Docker
+
+docker-cleanup-runtime() {
+    docker rm -f $(docker ps -aq)
+    docker volume prune
+    docker network prune
+}
+
+docker-cleanup-images() {
+    docker rmi $(docker images -q)
+    docker builder prune
+}
 
 # Go
 
 export GO_PATH=~/go
 export PATH=$PATH:/$GO_PATH/bin
 
-# Port
+# Opecode
 
-export PORT_LABS_DIR="$HOME/dev/port-labs"
-
-alias port-labs="cd $PORT_LABS_DIR"
-alias port-mono="cd $PORT_LABS_DIR/port"
-
-export AWS_PROFILE="port-admin"
-alias sso="aws sso login"
-
-alias kui="open http://localhost:8080"
-
-alias port-start="concurrently yarn:admin:start:dev yarn:backend:start:dev yarn:action:start:dev yarn:integration:start:dev yarn:checklist:start:dev"
-alias port-wait="wait-on http://localhost:3000 http://localhost:3002"
-
-port-clean() {
-    if [ -e package.json ]; then
-        echo "Cleaning project: $(pwd)"
+q() {
+    if [ -n "$1" ]; then
+        opencode run $@
     else
-        echo "No package.json found in $(pwd)"
-        return false
-    fi
-
-    read -q "ans?Are you sure? [y/N] "
-    if [[ $ans == "y" ]]; then
-        rm -rf **/node_modules **/dist **/build **/coverage
-        rm **/tsconfig.tsbuildinfo
-        return true
-    fi
-
-    return false
-}
-
-port-rebuild() {
-    if [[ port-clean ]]; then
-        yarn install
-        yarn pkg:build
+        opencode
     fi
 }
+alias "?"="q"

@@ -30,7 +30,8 @@ brew install \
     stow \
     yarn \
     sst/tap/opencode \
-    gcalcli
+    gcalcli \
+    zoxide
 
 gh extension install dlvhdr/gh-dash
 gh extension install gh-copilot
