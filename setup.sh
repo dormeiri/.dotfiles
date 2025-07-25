@@ -31,7 +31,10 @@ brew install \
     yarn \
     sst/tap/opencode \
     gcalcli \
-    zoxide
+    zoxide \
+    zsh-autosuggestions 
+
+git clone https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab
 
 gh extension install dlvhdr/gh-dash
 gh extension install gh-copilot

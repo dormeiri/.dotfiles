@@ -377,6 +377,18 @@ which_key.add({
 		mode = "i",
 	},
 	{
+		"<C-_>",
+		'"xyiwq/"xp<CR>N',
+		desc = "Search word under cursor",
+		mode = "n",
+	},
+	{
+		"<C-_>",
+		'"xyq/"xp<CR>N',
+		desc = "Search selection",
+		mode = "v",
+	},
+	{
 		"<leader>r",
 		[[:%s/\<<C-r><C-w>\>/<C-r><C-w>/gI<Left><Left><Left>]],
 		desc = "Search and replace word under cursor",
