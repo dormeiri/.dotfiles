@@ -57,7 +57,7 @@ o() {
 	rm -f -- "$tmp"
 }
 
-# fzf
+# Git
 
 alias fgb="gb | fzf --preview 'git show --color=always {-1}' --bind 'enter:become(git checkout {-1})'"
 
@@ -102,7 +102,7 @@ wtf() {
     fi
 }
 
-# Git
+alias "gc?"="opencode run Create git commit"
 
 alias git_config_set_personal='git config user.email "dormeiri@gmail.com" && git config user.name "Dor Meiri"'
 alias grbii='git fetch origin $(git_main_branch) && git rebase -i `git merge-base HEAD origin/$(git_main_branch)`'
