@@ -9,17 +9,13 @@
   ],
   "mcp": {
     "context7": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@upstash/context7-mcp"
-      ],
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
       "enabled": true
     },
     "sequential-thinking": {
       "type": "local",
-      "enabled": true,
+      "enabled": false,
       "command": [
         "docker",
         "run",
