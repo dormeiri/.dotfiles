@@ -5,63 +5,43 @@ return {
 	},
 
 	{
-		"ravitemer/mcphub.nvim",
-		dependencies = {
-			"nvim-lua/plenary.nvim",
-		},
-		build = "npm install -g mcp-hub@latest",
-		config = function()
-			require("mcphub").setup()
-		end,
-	},
-
-	{
 		"olimorris/codecompanion.nvim",
-		opts = function()
-			return {
-				extensions = {
-					mcphub = {
-						callback = "mcphub.extensions.codecompanion",
-						opts = {
-							make_vars = true,
-							make_slash_commands = true,
-							show_result_in_chat = true,
-						},
+		opts = {
+			prompt_library = {
+				["Generate a Commit Message inline"] = {
+					strategy = "inline",
+					description = "Generate a commit message",
+					opts = {
+						is_default = true,
+						is_slash_cmd = true,
+						short_name = "commitmsg",
+						auto_submit = true,
 					},
-					history = {
-						enabled = true,
-						opts = {
-							keymap = "<LocalLeader>h",
-							auto_save = true,
-							expiration_days = 0,
-							picker = "telescope",
-							picker_keymaps = {
-								rename = { n = "r", i = "<M-r>" },
-								delete = { n = "d", i = "<M-d>" },
-								duplicate = { n = "<C-y>", i = "<C-y>" },
+					prompts = {
+						{
+							role = "user",
+							content = function()
+								return string.format(
+									[[You are an expert at following the Conventional Commit specification. Given the git diff listed below, please generate a commit message for me:
+
+```diff
+%s
+```
+]],
+									vim.fn.system("git diff --no-ext-diff --staged")
+								)
+							end,
+							opts = {
+								contains_code = true,
 							},
-							auto_generate_title = true,
-							title_generation_opts = {
-								adapter = nil, -- "copilot"
-								model = nil, -- "gpt-4o"
-								refresh_every_n_prompts = 0,
-								max_refreshes = 3,
-							},
-							continue_last_chat = false,
-							delete_on_clearing_chat = false,
-							dir_to_save = vim.fn.stdpath("data") .. "/codecompanion-history",
-							enable_logging = false,
-							chat_filter = nil,
 						},
 					},
 				},
-			}
-		end,
+			},
+		},
 		dependencies = {
 			"nvim-lua/plenary.nvim",
 			"nvim-treesitter/nvim-treesitter",
-			"ravitemer/mcphub.nvim",
-			"ravitemer/codecompanion-history.nvim",
 		},
 	},
 }
