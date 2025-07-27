@@ -457,4 +457,12 @@ which_key.add({
 		desc = "CodeCompanionChat",
 		mode = "n",
 	},
+	{
+		"<leader>gc",
+		function()
+			require("codecompanion").prompt("commitmsg")
+		end,
+		desc = "Generate a commit message",
+		mode = "n",
+	},
 })

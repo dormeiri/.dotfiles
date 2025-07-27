@@ -13,7 +13,6 @@ yolo() {
     gh extension upgrade --all
 
     npm install -g \
-        mcp-hub@latest \
         concurrently@latest \
         wait-on@latest
 
