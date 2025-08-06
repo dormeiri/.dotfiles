@@ -10,19 +10,13 @@
   "mcp": {
     "context7": {
       "type": "remote",
-      "url": "https://mcp.context7.com/mcp",
-      "enabled": true
+      "enabled": true,
+      "url": "https://mcp.context7.com/mcp"
     },
-    "sequential-thinking": {
-      "type": "local",
-      "enabled": false,
-      "command": [
-        "docker",
-        "run",
-        "--rm",
-        "-i",
-        "mcp/sequentialthinking"
-      ]
+    "port": {
+      "type": "remote",
+      "enabled": true,
+      "url": "https://mcp.port.io/v1"
     }
   }
 }
