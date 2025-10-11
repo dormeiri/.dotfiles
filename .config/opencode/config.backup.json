@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "theme": "catppuccin",
+  "model": "grok-code",
+  "autoshare": false,
+  "autoupdate": true,
+  "mcp": {
+    "port": {
+      "type": "remote",
+      "enabled": true,
+      "url": "https://mcp.port.io/v1",
+      "headers": {
+        "Authorization": "Bearer PORT_API_KEY"
+      }
+    }
+  }
+}

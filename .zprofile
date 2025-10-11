@@ -101,12 +101,12 @@ wtf() {
     fi
 }
 
-alias "gc?"="opencode run Create git commit"
-
 alias git_config_set_personal='git config user.email "dormeiri@gmail.com" && git config user.name "Dor Meiri"'
 alias grbii='git fetch origin $(git_main_branch) && git rebase -i `git merge-base HEAD origin/$(git_main_branch)`'
 alias grbomm='git fetch origin $(git_main_branch) && git rebase origin/$(git_main_branch)'
 alias gbcopy='current_branch | pbcopy'
+alias gpwr="git push && sleep 5 && gh pr checks --watch && gh pr ready"
+alias gpfwr="git push --force-with-lease --force-if-includes && sleep 8 && gh pr checks --watch && gh pr ready"
 
 # Tmux
 
@@ -141,4 +141,5 @@ q() {
         opencode
     fi
 }
+
 alias "?"="q"

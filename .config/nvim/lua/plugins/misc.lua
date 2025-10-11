@@ -47,12 +47,4 @@ return {
 		version = "*",
 		opts = {},
 	},
-
-	{
-		"sphamba/smear-cursor.nvim",
-		opts = {
-			cursor_color = "#94e2d5",
-			smear_insert_mode = false,
-		},
-	},
 }
