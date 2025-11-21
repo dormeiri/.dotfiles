@@ -45,6 +45,10 @@ export PROFILE_PATH="$HOME/.zprofile"
 alias zprofile="$EDITOR $PROFILE_PATH"
 alias zreload="source $PROFILE_PATH"
 
+
+alias "q"="cursor-agent"
+alias "?"="q"
+
 # yazi
 
 o() {
@@ -131,15 +135,3 @@ docker-cleanup-images() {
 
 export GO_PATH=~/go
 export PATH=$PATH:/$GO_PATH/bin
-
-# Opecode
-
-q() {
-    if [ -n "$1" ]; then
-        opencode run $@
-    else
-        opencode
-    fi
-}
-
-alias "?"="q"

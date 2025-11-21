@@ -222,81 +222,47 @@ return {
 	},
 
 	{
-		"nvim-telescope/telescope.nvim",
-		dependencies = {
-			"nvim-lua/plenary.nvim",
-			"nvim-telescope/telescope-file-browser.nvim",
-			"nvim-telescope/telescope-fzf-native.nvim",
-		},
-		config = function()
-			local telescope = require("telescope")
-
-			vim.keymap.set(
-				"n",
-				"<leader><leader>",
-				"<cmd>Telescope find_files<cr>",
-				{ desc = "Find files (Telescope)" }
-			)
-			vim.keymap.set("n", "<leader>o", "<cmd>Telescope oldfiles<cr>", { desc = "Recent files" })
-			vim.keymap.set("n", "_", "<cmd>Telescope file_browser<cr>", { desc = "Open file browser in root" })
-			vim.keymap.set(
-				"n",
-				"-",
-				"<cmd>Telescope file_browser path=%:p:h select_buffer=true<cr>",
-				{ desc = "Open file browser in root" }
-			)
-
-			telescope.setup({
-				defaults = {
-					file_ignore_patterns = {
-						".git/",
-						"node_modules/",
-						"vendor/",
-						"%.lock",
-						"%.png",
-						"%.jpg",
-						"%.jpeg",
-						"%.gif",
-					},
-					path_display = { "filename_first" },
-					dynamic_preview_title = true,
-					results_title = false,
-					prompt_title = false,
-					sorting_strategy = "ascending",
-					layout_config = {
-						prompt_position = "top",
-						width = 0.95,
-						height = 0.9,
-					},
-				},
-				pickers = {
-					find_files = {
-						theme = "dropdown",
-						previewer = false,
-						hidden = true,
-					},
-					oldfiles = {
-						theme = "dropdown",
-						only_cwd = true,
-						previewer = false,
-					},
-				},
-				extensions = {
-					file_browser = {
-						hijack_netrw = true,
-						hidden = true,
-						display_stat = false,
-					},
-				},
-			})
-
-			telescope.load_extension("fzf")
-			telescope.load_extension("file_browser")
+		"dmtrKovalenko/fff.nvim",
+		build = function()
+			-- this will download prebuild binary or try to use existing rustup toolchain to build from source
+			-- (if you are using lazy you can use gb for rebuilding a plugin if needed)
+			require("fff.download").download_or_build_binary()
 		end,
+		lazy = false,
+		keys = {
+			{
+				"ff",
+				function()
+					require("fff").find_files()
+				end,
+				desc = "FFFind files",
+			},
+		},
 	},
 
 	{
-		"nvim-telescope/telescope-fzf-native.nvim",
-		build = "make",
+		"nvim-mini/mini.files",
+		version = "*",
+		config = function()
+			local MiniFiles = require("mini.files")
+
+			MiniFiles.setup({
+				windows = {
+					preview = true,
+				},
+				-- Close explorer after opening file with `l`
+				mappings = {
+					go_in = "L",
+					go_in_plus = "l",
+				},
+			})
+
+			vim.keymap.set("n", "-", function()
+				local buf_name = vim.api.nvim_buf_get_name(0)
+				local path = vim.fn.filereadable(buf_name) == 1 and buf_name or vim.fn.getcwd()
+				MiniFiles.open(path)
+				MiniFiles.reveal_cwd()
+			end, { desc = "Open Mini Files" })
+		end,
 	},
 }

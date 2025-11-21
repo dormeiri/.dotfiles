@@ -40,27 +40,6 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 	end,
 })
 
--- Auto save
-vim.api.nvim_create_autocmd({ "BufLeave", "FocusLost", "VimLeavePre" }, {
-	group = create_augroup("autosave"),
-	callback = function(event)
-		if
-			event.buftype
-			or event.file == ""
-			or not vim.api.nvim_get_option_value("modified", { buf = event.buf })
-			or vim.api.nvim_get_option_value("filetype", { buf = event.buf }) == "harpoon"
-		then
-			return
-		end
-
-		vim.schedule(function()
-			vim.api.nvim_buf_call(event.buf, function()
-				vim.cmd("silent! write")
-			end)
-		end)
-	end,
-})
-
 -- Copy path to clipboard
 vim.api.nvim_create_user_command("CopyFullPath", "call setreg('+', expand('%:p'))", {})
 vim.api.nvim_create_user_command("CopyRelativePath", "call setreg('+', expand('%'))", {})
