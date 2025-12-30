@@ -7,6 +7,7 @@ return {
 	{
 		"olimorris/codecompanion.nvim",
 		opts = {
+			ignore_warnings = true,
 			prompt_library = {
 				["Generate a Commit Message inline"] = {
 					strategy = "inline",

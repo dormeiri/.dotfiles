@@ -43,6 +43,16 @@ return {
 	},
 
 	{
+		"nvim-telescope/telescope.nvim",
+		dependencies = { "nvim-lua/plenary.nvim" },
+		opts = {},
+	},
+
+	{
+		"mistweaverco/bafa.nvim",
+	},
+
+	{
 		"echasnovski/mini.align",
 		version = "*",
 		opts = {},
