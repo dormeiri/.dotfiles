@@ -32,7 +32,8 @@ brew install \
     sst/tap/opencode \
     gcalcli \
     zoxide \
-    zsh-autosuggestions 
+    zsh-autosuggestions \
+    ducker
 
 git clone https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab
 

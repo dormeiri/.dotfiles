@@ -35,7 +35,7 @@ yolo() {
 alias c="clear"
 alias v="nvim"
 alias v.="v ."
-alias d="docker"
+alias d="ducker"
 alias awslocal="aws --endpoint-url http://localhost:4566"
 alias ghd="gh dash"
 alias dotfiles="cd $HOME/.dotfiles"

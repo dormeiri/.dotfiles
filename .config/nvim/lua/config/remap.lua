@@ -79,7 +79,16 @@ which_key.add({
 		mode = "n",
 	},
 
-	-- Telescope
+	-- Navigate
+	{
+		"<leader>b",
+		function()
+			require("bafa.ui").toggle()
+		end,
+		desc = "Bafa buffer switcher",
+		mode = "n",
+	},
+
 	{
 		"<leader>f",
 		"<cmd>GrugFar<cr>",
