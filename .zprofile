@@ -46,8 +46,7 @@ alias zprofile="$EDITOR $PROFILE_PATH"
 alias zreload="source $PROFILE_PATH"
 
 
-alias "q"="cursor-agent"
-alias "?"="q"
+alias "?"="cursor-agent"
 
 # yazi
 
@@ -88,7 +87,38 @@ fpr() {
 }
 
 wta() {
-    git worktree add $HOME/dev/worktrees/${PWD##*}/$1
+    local WT_DIR="$HOME/dev/worktrees/${PWD##*}/$1"
+
+    git worktree add $WT_DIR
+    cd $WT_DIR 
+
+    if [[ "$2" == "--ai" ]]; then
+        local PROMPTFILE=".prompt.txt"
+        nvim $PROMPTFILE
+    fi
+
+    git fetch origin main
+    git reset --hard origin/main
+    git checkout -b "$1"
+
+    if [ -f "yarn.lock" ]; then
+        node --version
+        yarn install
+        if jq -e '.scripts["pkg:build"]' package.json > /dev/null; then
+            yarn pkg:build
+        fi
+    fi
+
+    if [ -n $PROMPTFILE ]; then
+        if [[ "$3" == "--plan" ]]; then
+            cursor-agent --model opus-4.5-thinking --mode=plan -p --force "$(cat $PROMPTFILE)"
+        else
+            cursor-agent --model opus-4.5-thinking -p --force "$(cat $PROMPTFILE)"
+        fi
+        if [[ "$3" == "--pr" || "$4" == "--pr" ]]; then
+            cursor-agent --model auto -p --force "Create a PR"
+        fi
+    fi
 }
 
 wtf() {
@@ -108,7 +138,7 @@ wtf() {
 alias git_config_set_personal='git config user.email "dormeiri@gmail.com" && git config user.name "Dor Meiri"'
 alias grbii='git fetch origin $(git_main_branch) && git rebase -i `git merge-base HEAD origin/$(git_main_branch)`'
 alias grbomm='git fetch origin $(git_main_branch) && git rebase origin/$(git_main_branch)'
-alias gbcopy='current_branch | pbcopy'
+alias gbcopy='git_current_branch | pbcopy'
 alias gpwr="git push && sleep 5 && gh pr checks --watch && gh pr ready"
 alias gpfwr="git push --force-with-lease --force-if-includes && sleep 8 && gh pr checks --watch && gh pr ready"
 

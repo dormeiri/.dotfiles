@@ -193,12 +193,6 @@ which_key.add({
 		mode = "n",
 	},
 	{
-		"gs",
-		"<cmd>lua vim.lsp.buf.signature_help()<cr>",
-		desc = "LSP Siganture",
-		mode = "n",
-	},
-	{
 		"<leader>cr",
 		"<cmd>lua vim.lsp.buf.rename()<cr>",
 		desc = "LSP Rename",
@@ -213,20 +207,26 @@ which_key.add({
 
 	-- Git
 	{
-		"<leader>gs",
+		"gs",
 		"<cmd>Neogit<cr>",
 		desc = "Git status",
 		mode = "n",
 	},
 	{
-		"<leader>gdd",
+		"gS",
+		"<cmd>DiffviewOpen<cr>",
+		desc = "Git diff history - this file",
+		mode = "n",
+	},
+	{
+		"<leader>d",
 		"<cmd>DiffviewFileHistory %<cr>",
 		desc = "Git diff history - this file",
 		mode = "n",
 	},
 	{
-		"<leader>gdm",
-		"<cmd>DiffviewOpen main<cr>",
+		"<leader>gm",
+		"<cmd>DiffviewOpen main...HEAD<cr>",
 		desc = "Git diff from main",
 		mode = "n",
 	},
@@ -452,6 +452,12 @@ which_key.add({
 		"<cmd>nohlsearch<cr>",
 		desc = "Clear search",
 		mode = "n",
+	},
+	{
+		"Y",
+		"<cmd>CopyRelativePath<cr>",
+		desc = "Copy relative path",
+		mode = "v",
 	},
 	-- AI
 	{

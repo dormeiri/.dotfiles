@@ -42,5 +42,18 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 
 -- Copy path to clipboard
 vim.api.nvim_create_user_command("CopyFullPath", "call setreg('+', expand('%:p'))", {})
-vim.api.nvim_create_user_command("CopyRelativePath", "call setreg('+', expand('%'))", {})
+vim.api.nvim_create_user_command("CopyRelativePath", function(opts)
+	local path = vim.fn.expand("%")
+	if opts.range > 0 then
+		local line1 = opts.line1
+		local line2 = opts.line2
+		if line1 == line2 then
+			path = path .. ":" .. line1
+		else
+			path = path .. ":" .. line1 .. "-" .. line2
+		end
+	end
+	vim.fn.setreg("+", path)
+	vim.notify(path, vim.log.levels.INFO)
+end, { range = true })
 vim.api.nvim_create_user_command("CopyCwd", "call setreg('+', getcwd())", {})

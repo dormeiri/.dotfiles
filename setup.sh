@@ -29,11 +29,11 @@ brew install \
     yazi \
     stow \
     yarn \
-    sst/tap/opencode \
     gcalcli \
     zoxide \
     zsh-autosuggestions \
-    ducker
+    zsh-vi-mode \
+    f1bonacc1/tap/process-compose
 
 git clone https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab
 
