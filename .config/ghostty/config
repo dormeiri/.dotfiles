@@ -1,10 +1,14 @@
 theme = Catppuccin Mocha
-macos-titlebar-style = hidden
-macos-non-native-fullscreen = true
-window-decoration = false
-copy-on-select = true
+custom-shader = shaders/cursor_smear.glsl
+
+maximize = true
+window-decoration = none
+
 quit-after-last-window-closed = true
+
+copy-on-select = true
 macos-option-as-alt = true
 keybind = shift+enter=text:\n
 
-custom-shader = "shaders/cursor_smear.glsl"
+mouse-hide-while-typing = true
+link-previews = true

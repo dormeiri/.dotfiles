@@ -3,13 +3,14 @@
 set -e
 
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-brew install zsh git gh
+brew install zsh git gh stow
 chsh -s $(which zsh)
 
 gh auth login
 gh repo clone dormeiri/.dotfiles ~/.dotfiles
 
 touch ~/.credentials
+touch ~/.hushlogin
 
 cd ~/.dotfiles
 stow .
@@ -27,7 +28,6 @@ brew install \
     tmux \
     fzf \
     yazi \
-    stow \
     yarn \
     gcalcli \
     zoxide \
