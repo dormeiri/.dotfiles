@@ -33,7 +33,8 @@ brew install \
     zoxide \
     zsh-autosuggestions \
     zsh-vi-mode \
-    f1bonacc1/tap/process-compose
+    f1bonacc1/tap/process-compose \
+    rtk
 
 git clone https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab
 
@@ -41,5 +42,7 @@ gh extension install dlvhdr/gh-dash
 gh extension install gh-copilot
 
 curl -fsSL https://get.jetify.com/devbox | bash
+
+echo "After you install Cursor/Claude, initialize RTK 👈🏻👈🏻👈🏻👈🏻👈🏻"
 
 echo "✨ Setup complete! Restart your terminal to apply changes"

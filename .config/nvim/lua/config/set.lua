@@ -32,6 +32,8 @@ local function create_augroup(name)
 	return vim.api.nvim_create_augroup("dormeiri:" .. name, {})
 end
 
+vim.keymap.set("v", "p", '"_dP', { silent = true })
+
 -- Highlight yanked text
 vim.api.nvim_create_autocmd("TextYankPost", {
 	group = create_augroup("text_yank_post"),
