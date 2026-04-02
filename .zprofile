@@ -34,8 +34,9 @@ yolo() {
 
 alias c="clear"
 alias v="nvim"
+alias gs='nvim -c "lua require(\"neogit\").open()" -c "autocmd TabClosed * if tabpagenr(\"$\") == 1 | quit | endif"'
 alias v.="v ."
-alias d="ducker"
+alias d="docker"
 alias awslocal="aws --endpoint-url http://localhost:4566"
 alias ghd="gh dash"
 alias dotfiles="cd $HOME/.dotfiles"
@@ -46,7 +47,7 @@ alias zprofile="$EDITOR $PROFILE_PATH"
 alias zreload="source $PROFILE_PATH"
 
 
-alias "?"="cursor-agent"
+alias "cc"="CLAUDE_CODE_NO_FLICKER=1 claude"
 
 # yazi
 
@@ -86,40 +87,7 @@ fpr() {
         --header "Enter to checkout, CTRL-O to open, CTRL-Y to copy URL"
 }
 
-wta() {
-    local WT_DIR="$HOME/dev/worktrees/${PWD##*}/$1"
-
-    git worktree add $WT_DIR
-    cd $WT_DIR 
-
-    if [[ "$2" == "--ai" ]]; then
-        local PROMPTFILE=".prompt.txt"
-        nvim $PROMPTFILE
-    fi
-
-    git fetch origin main
-    git reset --hard origin/main
-    git checkout -b "$1"
-
-    if [ -f "yarn.lock" ]; then
-        node --version
-        yarn install
-        if jq -e '.scripts["pkg:build"]' package.json > /dev/null; then
-            yarn pkg:build
-        fi
-    fi
-
-    if [ -n $PROMPTFILE ]; then
-        if [[ "$3" == "--plan" ]]; then
-            cursor-agent --model opus-4.5-thinking --mode=plan -p --force "$(cat $PROMPTFILE)"
-        else
-            cursor-agent --model opus-4.5-thinking -p --force "$(cat $PROMPTFILE)"
-        fi
-        if [[ "$3" == "--pr" || "$4" == "--pr" ]]; then
-            cursor-agent --model auto -p --force "Create a PR"
-        fi
-    fi
-}
+alias wta='$HOME/.dotfiles/scripts/wta.sh'
 
 wtf() {
     local BIND_ENTER='enter:become(echo {} | cut -d" " -f1 | xargs echo)'

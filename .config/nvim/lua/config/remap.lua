@@ -1,26 +1,8 @@
 local which_key = require("which-key")
 
 local harpoon = require("harpoon")
-local chainsaw = require("chainsaw")
 
 which_key.add({
-	-- Chainsaw
-	{
-		"<leader>ll",
-		function()
-			chainsaw:emojiLog()
-		end,
-		desc = "Chainsaw",
-		mode = { "n", "v" },
-	},
-	{
-		"<leader>lr",
-		function()
-			chainsaw:removeLogs()
-		end,
-		desc = "Chainsaw",
-		mode = { "n", "v" },
-	},
 	-- Harpoon
 	{
 		"<leader>a",
@@ -81,6 +63,42 @@ which_key.add({
 
 	-- Navigate
 	{
+		"ff",
+		function()
+			require("fff").find_files()
+		end,
+		desc = "FFFind files",
+		mode = "n",
+	},
+	{
+		"fg",
+		function()
+			require("fff").live_grep()
+		end,
+		desc = "LiFFFe grep",
+		mode = "n",
+	},
+	{
+		"fc",
+		function()
+			require("fff").live_grep({ query = vim.fn.expand("<cword>") })
+		end,
+		desc = "Search current word",
+		mode = "n",
+	},
+	{
+		"-",
+		function()
+			local MiniFiles = require("mini.files")
+			local buf_name = vim.api.nvim_buf_get_name(0)
+			local path = vim.fn.filereadable(buf_name) == 1 and buf_name or vim.fn.getcwd()
+			MiniFiles.open(path)
+			MiniFiles.reveal_cwd()
+		end,
+		desc = "Open Mini Files",
+		mode = "n",
+	},
+	{
 		"<leader>b",
 		function()
 			require("bafa.ui").toggle()
@@ -108,14 +126,6 @@ which_key.add({
 		mode = "v",
 	},
 	{
-		"<leader><C-f>",
-		function()
-			require("grug-far").open({ engine = "astgrep" })
-		end,
-		desc = "Search and replace with astgrep",
-		mode = "n",
-	},
-	{
 		"<leader>F",
 		function()
 			require("grug-far").open({
@@ -137,6 +147,34 @@ which_key.add({
 		end,
 		desc = "Search and replace current word in current file",
 		mode = "n",
+	},
+	{
+		"R",
+		function()
+			local start_line = vim.fn.line("v")
+			local end_line = vim.fn.line(".")
+			if start_line > end_line then
+				start_line, end_line = end_line, start_line
+			end
+
+			local rel_path = vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
+			local line_str = ":" .. start_line .. "-" .. end_line
+			local result = rel_path .. line_str
+
+			vim.fn.setreg("+", result)
+			print("Copied: " .. result)
+		end,
+		mode = { "v" },
+	},
+	{
+		"R",
+		function()
+			local result = vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
+
+			vim.fn.setreg("+", result)
+			print("Copied: " .. result)
+		end,
+		mode = { "n" },
 	},
 
 	-- Trouble
@@ -213,29 +251,48 @@ which_key.add({
 		mode = "n",
 	},
 	{
-		"gS",
+		"<leader>gs",
 		"<cmd>DiffviewOpen<cr>",
-		desc = "Git diff history - this file",
-		mode = "n",
-	},
-	{
-		"<leader>d",
-		"<cmd>DiffviewFileHistory %<cr>",
-		desc = "Git diff history - this file",
+		desc = "Git diff status",
 		mode = "n",
 	},
 	{
 		"<leader>gm",
 		"<cmd>DiffviewOpen main...HEAD<cr>",
-		desc = "Git diff from main",
+		desc = "Git diff diverged from main",
 		mode = "n",
+	},
+	{
+		"<leader>gf",
+		"<cmd>DiffviewFileHistory %<cr>",
+		desc = "Git history - this file",
+		mode = "n",
+	},
+	{
+		"<leader>gf",
+		"<cmd>'<,'>DiffviewFileHistory<cr>",
+		desc = "Git history - selection",
+		mode = "v",
 	},
 	{
 		"<leader>gl",
 		function()
+			require("gitgraph").draw({}, { max_count = 500 })
+		end,
+		desc = "GitGraph - Draw",
+	},
+	{
+		"<leader>gL",
+		function()
 			require("gitgraph").draw({}, { all = true, max_count = 500 })
 		end,
 		desc = "GitGraph - Draw",
+	},
+	{
+		"<leader>hR",
+		"<cmd>Gitsigns reset_hunk<cr>",
+		desc = "Reset hunk",
+		mode = "n",
 	},
 	{
 		"]h",
@@ -458,26 +515,5 @@ which_key.add({
 		"<cmd>CopyRelativePath<cr>",
 		desc = "Copy relative path",
 		mode = "v",
-	},
-	-- AI
-	{
-		"<leader>\\",
-		"<cmd>'<,'>CodeCompanion<cr>",
-		desc = "CodeCompanion (visual selection)",
-		mode = "v",
-	},
-	{
-		"<leader>\\",
-		"<cmd>CodeCompanionChat<cr>",
-		desc = "CodeCompanionChat",
-		mode = "n",
-	},
-	{
-		"<leader>gc",
-		function()
-			require("codecompanion").prompt("commitmsg")
-		end,
-		desc = "Generate a commit message",
-		mode = "n",
 	},
 })
