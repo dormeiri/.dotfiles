@@ -23,7 +23,7 @@ run() {
     if $DRY_RUN; then
         echo "  [dry-run] $*" >&2
     else
-        "$@"
+        "$@" >&2
     fi
 }
 
