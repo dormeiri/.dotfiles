@@ -5,4 +5,4 @@ if [[ -z "${NEXT_EVENT}" ]]; then
     exit 0
 fi
 
-echo "${NEXT_EVENT}"
+echo "${NEXT_EVENT}" | tr -cd '\000-\177'

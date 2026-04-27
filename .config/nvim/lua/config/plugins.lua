@@ -7,7 +7,6 @@ require("catppuccin").setup({
 		noice = true,
 		copilot_vim = true,
 		notify = true,
-		which_key = true,
 		harpoon = true,
 	},
 })
@@ -198,3 +197,8 @@ require("gitgraph").setup({
 		end,
 	},
 })
+
+-- Pre-initialize fff scanner after startup
+vim.schedule(function()
+	require("fff.core").ensure_initialized()
+end)

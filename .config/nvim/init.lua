@@ -65,7 +65,6 @@ vim.pack.add({
 	{ src = "https://github.com/ThePrimeagen/harpoon", version = "harpoon2" },
 
 	-- Editing
-	"https://github.com/folke/which-key.nvim",
 	"https://github.com/Wansmer/treesj",
 	"https://github.com/kylechui/nvim-surround",
 	"https://github.com/MagicDuck/grug-far.nvim",

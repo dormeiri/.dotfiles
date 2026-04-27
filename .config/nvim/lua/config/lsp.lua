@@ -30,7 +30,7 @@ vim.lsp.enable({
 	"jsonls",
 	"yamlls",
 	"terraformls",
-	"tailwindcss",
+	-- "tailwindcss",
 	"dockerls",
 	"gopls",
 })

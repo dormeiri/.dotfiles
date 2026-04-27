@@ -79,7 +79,7 @@ if ! git rev-parse --is-inside-work-tree &>/dev/null; then
     exit 1
 fi
 
-if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+if git show-ref --quiet --verify "refs/heads/$BRANCH"; then
     echo "❌  Branch '$BRANCH' already exists locally. Choose a different name."
     exit 1
 fi
@@ -132,7 +132,11 @@ run git fetch origin "$BASE_BRANCH" || {
 run git reset --hard "origin/$BASE_BRANCH"
 
 # ─── Checkout branch ─────────────────────────────────────────────────────────
-run git checkout -b "$BRANCH"
+if git show-ref --quiet --verify "refs/heads/$BRANCH"; then
+    run git checkout "$BRANCH"
+else
+    run git checkout -b "$BRANCH"
+fi
 echo "✅ On branch: $BRANCH"
 
 # ─── Dependency installation ─────────────────────────────────────────────────
