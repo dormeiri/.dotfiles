@@ -17,11 +17,9 @@ yolo() {
         wait-on@latest
 
 
-    nvim --headless "+Lazy! sync" +qa
+    nvim --headless -c "lua vim.pack.update()" -c "qa!"
     nvim --headless \
 		+MasonUpdate \
-		+TSUpdateSync \
-		+UpdateRemotePlugins \
 		+'helptags ALL' \
 		+qa
 
@@ -47,7 +45,8 @@ alias zprofile="$EDITOR $PROFILE_PATH"
 alias zreload="source $PROFILE_PATH"
 
 
-alias "cc"="CLAUDE_CODE_NO_FLICKER=1 claude"
+export CLAUDE_CODE_NO_FLICKER=1
+alias "cc"="claude"
 
 # yazi
 

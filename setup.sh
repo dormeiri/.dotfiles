@@ -39,10 +39,9 @@ brew install \
 git clone https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab
 
 gh extension install dlvhdr/gh-dash
-gh extension install gh-copilot
 
 curl -fsSL https://get.jetify.com/devbox | bash
 
-echo "After you install Cursor/Claude, initialize RTK 👈🏻👈🏻👈🏻👈🏻👈🏻"
+echo "👉🏻👉🏻👉🏻👉🏻👉🏻 After you install Cursor/Claude, initialize RTK and Caveman 🗿"
 
 echo "✨ Setup complete! Restart your terminal to apply changes"
