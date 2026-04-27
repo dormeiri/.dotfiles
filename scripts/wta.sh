@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ─── Defaults ────────────────────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 BRANCH=""
 BASE_BRANCH="main"
 USE_AI=false
@@ -9,37 +10,34 @@ USE_PLAN=false
 USE_PR=false
 DRY_RUN=false
 NO_INSTALL=false
-AI_MODEL="opus-4.5-thinking"
-PROMPTFILE=""
+AI_MODEL="claude-sonnet-4-6"
+USE_HARD=false
+USE_EASY=false
+MODEL_EXPLICIT=false
+SETUP_SCRIPT=""
+AGENT="cursor"
 
-# ─── Usage ───────────────────────────────────────────────────────────────────
 usage() {
     echo "Usage: wta <branch-name> [options]"
     echo ""
     echo "Options:"
-    echo "  --ai              Open nvim to write a prompt, then run cursor-agent"
+    echo "  --ai              Open nvim to write a prompt, then run agent
+  --agent <type>    Agent to use: cursor (default) or claude"
     echo "  --plan            Run cursor-agent in plan mode (requires --ai)"
     echo "  --pr              Create a PR after cursor-agent runs (requires --ai)"
     echo "  --base <branch>   Base branch to reset from (default: main)"
-    echo "  --model <model>   cursor-agent model (default: opus-4.5-thinking)"
-    echo "  --no-install      Skip dependency installation"
-    echo "  --dry-run         Print actions without executing them"
+    echo "  --hard            Use claude-opus-4-7 (mutually exclusive with --easy/--model)"
+    echo "  --easy            Use composer-2 (mutually exclusive with --hard/--model)"
+    echo "  --model <model>   cursor-agent model (default: claude-sonnet-4-6)"
+    echo "  --setup <script>  Custom setup script to run instead of wt-setup.sh
+  --no-install      Skip dependency installation"
+    echo "  --dry-run         Print actions without executing"
     echo "  --help            Show this help message"
     echo ""
     echo "Example:"
-    echo "  wta my-feature --ai --plan --pr --base develop"
+    echo "  wta my-feature --ai --pr --base develop --hard"
 }
 
-# ─── Dry-run helper ──────────────────────────────────────────────────────────
-run() {
-    if $DRY_RUN; then
-        echo "  [dry-run] $*"
-    else
-        "$@"
-    fi
-}
-
-# ─── Argument parsing ────────────────────────────────────────────────────────
 if [[ $# -eq 0 ]]; then
     usage
     exit 1
@@ -56,7 +54,11 @@ while [[ $# -gt 0 ]]; do
         --no-install)  NO_INSTALL=true ;;
         --dry-run)     DRY_RUN=true ;;
         --base)        BASE_BRANCH="$2"; shift ;;
-        --model)       AI_MODEL="$2"; shift ;;
+        --hard)        USE_HARD=true ;;
+        --easy)        USE_EASY=true ;;
+        --setup)       SETUP_SCRIPT="$2"; shift ;;
+        --agent)       AGENT="$2"; shift ;;
+        --model)       AI_MODEL="$2"; MODEL_EXPLICIT=true; shift ;;
         --help|-h)     usage; exit 0 ;;
         *)
             echo "❌  Unknown option: $1"
@@ -67,116 +69,58 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-# ─── Validate ────────────────────────────────────────────────────────────────
-if [[ -z "$BRANCH" ]]; then
-    echo "❌  Branch name is required."
-    usage
-    exit 1
-fi
+# ─── Create worktree ─────────────────────────────────────────────────────────
+CREATE_ARGS=("$BRANCH" "--base" "$BASE_BRANCH")
+$DRY_RUN && CREATE_ARGS+=("--dry-run")
 
-if ! git rev-parse --is-inside-work-tree &>/dev/null; then
-    echo "❌  Not inside a git repository."
-    exit 1
-fi
-
-if git show-ref --quiet --verify "refs/heads/$BRANCH"; then
-    echo "❌  Branch '$BRANCH' already exists locally. Choose a different name."
-    exit 1
-fi
-
-REPO_NAME="${PWD##*/}"
-WT_DIR="$HOME/dev/worktrees/${REPO_NAME}/${BRANCH}"
-
-# ─── Preview ─────────────────────────────────────────────────────────────────
-echo "🌿 Creating worktree"
-echo "   Repo    : $REPO_NAME"
-echo "   Branch  : $BRANCH"
-echo "   Base    : origin/$BASE_BRANCH"
-echo "   Path    : $WT_DIR"
-$DRY_RUN && echo "   ⚠️  Dry-run mode — no changes will be made"
-echo ""
-
-# ─── Worktree creation ───────────────────────────────────────────────────────
-run git worktree add "$WT_DIR" || {
-    echo "❌  git worktree add failed. Does the worktree already exist?"
-    exit 1
-}
-
-# NOTE: cd in a script only affects the script's process, not the calling shell.
-# To change the caller's directory too, source this script or use a shell wrapper.
-cd "$WT_DIR" || {
-    echo "❌  Could not cd into $WT_DIR"
-    exit 1
-}
+WT_DIR=$("$SCRIPT_DIR/wt-create.sh" "${CREATE_ARGS[@]}")
 
 echo "📂 Now in: $WT_DIR"
+cd "$WT_DIR"
 
-# ─── AI prompt ───────────────────────────────────────────────────────────────
+# ─── Prompt (before setup so editor opens while deps install) ─────────────────
+PROMPTFILE=""
 if $USE_AI; then
     PROMPTFILE=".prompt.txt"
-    echo "✏️  Opening nvim for your prompt…"
-    run nvim "$PROMPTFILE"
-
-    if [[ ! $DRY_RUN && ( ! -f "$PROMPTFILE" || ! -s "$PROMPTFILE" ) ]]; then
-        echo "⚠️  Prompt file is empty or missing — skipping cursor-agent."
-        PROMPTFILE=""
-    fi
-fi
-
-# ─── Sync to base branch ─────────────────────────────────────────────────────
-echo "🔄 Fetching origin/$BASE_BRANCH..."
-run git fetch origin "$BASE_BRANCH" || {
-    echo "❌  git fetch failed."
-    exit 1
-}
-run git reset --hard "origin/$BASE_BRANCH"
-
-# ─── Checkout branch ─────────────────────────────────────────────────────────
-if git show-ref --quiet --verify "refs/heads/$BRANCH"; then
-    run git checkout "$BRANCH"
-else
-    run git checkout -b "$BRANCH"
-fi
-echo "✅ On branch: $BRANCH"
-
-# ─── Dependency installation ─────────────────────────────────────────────────
-if ! $NO_INSTALL; then
-    if [[ -f "yarn.lock" ]]; then
-        echo "📦 yarn detected"
-        node --version
-        run yarn install
-        if jq -e '.scripts["pkg:build"]' package.json &>/dev/null; then
-            echo "🔨 Running yarn pkg:build…"
-            run yarn pkg:build
+    echo "✏️  Opening ${EDITOR:-nvim} for your prompt…"
+    if ! $DRY_RUN; then
+        ${EDITOR:-nvim} "$PROMPTFILE"
+        if [[ ! -f "$PROMPTFILE" || ! -s "$PROMPTFILE" ]]; then
+            echo "⚠️  Prompt file is empty or missing — skipping agent."
+            PROMPTFILE=""
         fi
-    elif [[ -f "pnpm-lock.yaml" ]]; then
-        echo "📦 pnpm detected"
-        node --version
-        run pnpm install
-    elif [[ -f "package-lock.json" ]]; then
-        echo "📦 npm detected"
-        node --version
-        run npm install
     fi
-else
-    echo "⏭️  Skipping dependency installation (--no-install)"
 fi
 
-# ─── cursor-agent ────────────────────────────────────────────────────────────
-if [[ -n "$PROMPTFILE" && -s "$PROMPTFILE" ]]; then
-    echo ""
-    echo "🤖 Running cursor-agent (model: $AI_MODEL)..."
+# ─── Setup ───────────────────────────────────────────────────────────────────
+if [[ -n "$SETUP_SCRIPT" ]]; then
+    "$SETUP_SCRIPT"
+elif ! $NO_INSTALL; then
+    SETUP_ARGS=()
+    $DRY_RUN && SETUP_ARGS+=("--dry-run")
+    "$SCRIPT_DIR/wt-setup.sh" "${SETUP_ARGS[@]}"
+else
+    echo "⏭️  Skipping setup (--no-install)"
+fi
 
-    if $USE_PLAN; then
-        run cursor-agent --model "$AI_MODEL" --mode=plan -p --force "$(cat "$PROMPTFILE")"
-    else
-        run cursor-agent --model "$AI_MODEL" -p --force "$(cat "$PROMPTFILE")"
-    fi
+# ─── Agent ───────────────────────────────────────────────────────────────────
+if [[ -n "$PROMPTFILE" ]]; then
+    AGENT_ARGS=("--prompt" "$PROMPTFILE")
+    $USE_PLAN       && AGENT_ARGS+=("--plan")
+    $USE_PR         && AGENT_ARGS+=("--pr")
+    $USE_HARD       && AGENT_ARGS+=("--hard")
+    $USE_EASY       && AGENT_ARGS+=("--easy")
+    $MODEL_EXPLICIT && AGENT_ARGS+=("--model" "$AI_MODEL")
+    $DRY_RUN        && AGENT_ARGS+=("--dry-run")
 
-    if $USE_PR; then
-        echo "📬 Creating PR…"
-        run cursor-agent --model auto -p --force "Create a PR"
-    fi
+    case "$AGENT" in
+        cursor) "$SCRIPT_DIR/wt-cursor-agent.sh" "${AGENT_ARGS[@]}" ;;
+        claude) "$SCRIPT_DIR/wt-claude-agent.sh" "${AGENT_ARGS[@]}" ;;
+        *)
+            echo "❌  Unknown agent: $AGENT (use cursor or claude)"
+            exit 1
+            ;;
+    esac
 fi
 
 echo ""
