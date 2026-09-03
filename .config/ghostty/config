@@ -1,5 +1,6 @@
 theme = Catppuccin Mocha
 custom-shader = shaders/cursor_smear.glsl
+font-family = "Rec Mono Linear"
 
 maximize = true
 window-decoration = none

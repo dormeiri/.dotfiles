@@ -44,6 +44,7 @@ export PROFILE_PATH="$HOME/.zprofile"
 alias zprofile="$EDITOR $PROFILE_PATH"
 alias zreload="source $PROFILE_PATH"
 
+alias cn="concurrently"
 
 export CLAUDE_CODE_NO_FLICKER=1
 alias "cc"="claude"
@@ -106,8 +107,7 @@ alias git_config_set_personal='git config user.email "dormeiri@gmail.com" && git
 alias grbii='git fetch origin $(git_main_branch) && git rebase -i `git merge-base HEAD origin/$(git_main_branch)`'
 alias grbomm='git fetch origin $(git_main_branch) && git rebase origin/$(git_main_branch)'
 alias gbcopy='git_current_branch | pbcopy'
-alias gpwr="git push && sleep 5 && gh pr checks --watch && gh pr ready"
-alias gpfwr="git push --force-with-lease --force-if-includes && sleep 8 && gh pr checks --watch && gh pr ready"
+alias ghpr="gh pr create --assignee @me -T PULL_REQUEST_TEMPLATE.md -e && gh pr view --web"
 
 # Tmux
 

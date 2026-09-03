@@ -4,9 +4,13 @@ set -euo pipefail
 # Opens nvim to write a prompt, then runs cursor-agent.
 # Run from inside the worktree.
 
+SESSION_ID_FILE=".session_id"
+EASY_MODEL="composer-2.5"
+MEDIUM_MODEL="claude-5-sonnet-medium-thinking"
+HARD_MODEL="claude-5-sonnet-medium-thinking"
 USE_PLAN=false
 USE_PR=false
-AI_MODEL="claude-sonnet-4-6"
+AI_MODEL="$MEDIUM_MODEL"
 USE_HARD=false
 USE_EASY=false
 MODEL_EXPLICIT=false
@@ -21,9 +25,9 @@ usage() {
     echo "Options:"
     echo "  --plan            Run cursor-agent in plan mode"
     echo "  --pr              Create a PR after cursor-agent runs"
-    echo "  --hard            Use claude-opus-4-7 (mutually exclusive with --easy/--model)"
-    echo "  --easy            Use composer-2 (mutually exclusive with --hard/--model)"
-    echo "  --model <model>   cursor-agent model (default: claude-sonnet-4-6)"
+    echo "  --hard            Use $HARD_MODEL (mutually exclusive with --easy/--model)"
+    echo "  --easy            Use $EASY_MODEL (mutually exclusive with --hard/--model)"
+    echo "  --model <model>   cursor-agent model (default: $AI_MODEL)"
     echo "  --prompt <file>   Use existing prompt file instead of opening nvim"
     echo "  --dry-run         Print actions without executing"
     echo "  --help            Show this help message"
@@ -68,9 +72,9 @@ if (( _model_flags > 1 )); then
 fi
 
 if $USE_HARD; then
-    AI_MODEL="claude-opus-4-7"
+    AI_MODEL="$HARD_MODEL"
 elif $USE_EASY; then
-    AI_MODEL="composer-2"
+    AI_MODEL="$EASY_MODEL"
 fi
 
 if [[ -z "$PROMPTFILE" ]]; then
@@ -93,14 +97,14 @@ echo ""
 echo "🤖 Running cursor-agent (model: $AI_MODEL)..."
 
 if $USE_PLAN; then
-    run cursor-agent --model "$AI_MODEL" --mode=plan -p --force "$(cat "$PROMPTFILE")"
+    run cursor-agent --model "$AI_MODEL" --output-format json --mode=plan -p --force "$(cat "$PROMPTFILE")" | jq -r .session_id > "$SESSION_ID_FILE"
     if $USE_PR; then
         echo "⏭️ Skipping PR creation in plan mode"
     fi
 else
-    run cursor-agent --model "$AI_MODEL" -p --force "$(cat "$PROMPTFILE")"
+    run cursor-agent --model "$AI_MODEL" --output-format json -p --force "$(cat "$PROMPTFILE")" | jq -r .session_id > "$SESSION_ID_FILE"
     if $USE_PR; then
         echo "📬 Creating PR…"
-        run cursor-agent --model "composer-2" -p --force "Create a PR"
+        run cursor-agent --resume $(cat "$SESSION_ID_FILE") --model "$EASY_MODEL" -p --force "Create a PR"
     fi
 fi

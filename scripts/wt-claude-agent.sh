@@ -4,12 +4,14 @@ set -euo pipefail
 # Runs claude (Claude Code CLI) with a prompt file.
 # Run from inside the worktree.
 
+MEDIUM_MODEL="claude-sonnet-5"
 USE_PR=false
-AI_MODEL="claude-sonnet-4-6"
+AI_MODEL="$MEDIUM_MODEL"
 USE_HARD=false
 MODEL_EXPLICIT=false
 DRY_RUN=false
 PROMPTFILE=""
+SESSION_ID_FILE=".session_id"
 
 usage() {
     echo "Usage: wt-claude-agent [options]"
@@ -18,8 +20,8 @@ usage() {
     echo ""
     echo "Options:"
     echo "  --pr              Create a PR after agent runs"
-    echo "  --hard            Use claude-opus-4-7 (mutually exclusive with --model)"
-    echo "  --model <model>   Claude model (default: claude-sonnet-4-6)"
+    echo "  --hard            Use claude-opus-5 (mutually exclusive with --model)"
+    echo "  --model <model>   Claude model (default: claude-sonnet-5)"
     echo "  --prompt <file>   Prompt file (skips editor)"
     echo "  --dry-run         Print actions without executing"
     echo "  --help            Show this help message"
@@ -59,7 +61,7 @@ if $USE_HARD && $MODEL_EXPLICIT; then
 fi
 
 if $USE_HARD; then
-    AI_MODEL="claude-opus-4-7"
+    AI_MODEL="claude-opus-5"
 fi
 
 if [[ -z "$PROMPTFILE" ]]; then
@@ -81,9 +83,9 @@ fi
 
 echo ""
 echo "🤖 Running claude (model: $AI_MODEL)..."
-run claude --model "$AI_MODEL" -p "$(cat "$PROMPTFILE")"
+run claude --dangerously-skip-permissions --model "$AI_MODEL" --output-format json -p "$(cat "$PROMPTFILE")" | jq -r .session_id > "$SESSION_ID_FILE"
 
 if $USE_PR; then
     echo "📬 Creating PR…"
-    run claude --model "$AI_MODEL" -p "Create a PR for the changes in this worktree"
+    run claude --dangerously-skip-permissions --model "$MEDIUM_MODEL" --resume "$(cat "$SESSION_ID_FILE")" -p "Create a PR for the changes in this worktree"
 fi

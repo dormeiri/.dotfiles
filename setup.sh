@@ -34,6 +34,7 @@ brew install \
     zsh-autosuggestions \
     zsh-vi-mode \
     f1bonacc1/tap/process-compose \
+    gum \
     rtk
 
 git clone https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab
