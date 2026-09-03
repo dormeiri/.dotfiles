@@ -43,4 +43,7 @@ source <(fzf --zsh)
 # Added by Antigravity
 export PATH="/Users/dorm/.antigravity/antigravity/bin:$PATH"
 
+export PATH="$HOME/.local/bin:$PATH"
+
 eval "$(op completion zsh)"; compdef _op op
+
