@@ -35,6 +35,17 @@ brew install \
     zsh-vi-mode \
     f1bonacc1/tap/process-compose \
     gum \
+    flyctl \
+    awscli \
+    docker \
+    helm \
+    htop \
+    imagemagick \
+    jqp \
+    make \
+    opencode \
+    parallel \
+    tree \
     rtk
 
 git clone https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab

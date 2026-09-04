@@ -23,25 +23,12 @@ ZVM_VI_INSERT_ESCAPE_BINDKEY=jk
 
 autoload -U compinit; compinit -i
 
-# pnpm
-export PNPM_HOME="/Users/dorm/Library/pnpm"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
-# pnpm end
-#
-export KUBECONFIG=~/Documents/okteto-kube.config:/Users/dorm/.kube/config
-
 function zvm_after_init() {
   bindkey "^R" fzf-history-widget
   bindkey "^I" fzf-completion
 }
 
 source <(fzf --zsh)
-
-# Added by Antigravity
-export PATH="/Users/dorm/.antigravity/antigravity/bin:$PATH"
 
 export PATH="$HOME/.local/bin:$PATH"
 
