@@ -4,6 +4,7 @@ set -euo pipefail
 # Runs claude (Claude Code CLI) with a prompt file.
 # Run from inside the worktree.
 
+LOCAL_TEMP_DIR="temp"
 MEDIUM_MODEL="claude-sonnet-5"
 USE_PR=false
 AI_MODEL="$MEDIUM_MODEL"
@@ -11,7 +12,7 @@ USE_HARD=false
 MODEL_EXPLICIT=false
 DRY_RUN=false
 PROMPTFILE=""
-SESSION_ID_FILE=".session_id"
+SESSION_ID_FILE="$LOCAL_TEMP_DIR/.session_id"
 
 usage() {
     echo "Usage: wt-claude-agent [options]"
@@ -64,8 +65,10 @@ if $USE_HARD; then
     AI_MODEL="claude-opus-5"
 fi
 
+mkdir -p "$LOCAL_TEMP_DIR"
+
 if [[ -z "$PROMPTFILE" ]]; then
-    PROMPTFILE=".prompt.txt"
+    PROMPTFILE="$LOCAL_TEMP_DIR/.prompt.txt"
     echo "✏️  Opening ${EDITOR:-nvim} for your prompt…"
     if ! $DRY_RUN; then
         ${EDITOR:-nvim} "$PROMPTFILE"

@@ -4,7 +4,8 @@ set -euo pipefail
 # Opens nvim to write a prompt, then runs cursor-agent.
 # Run from inside the worktree.
 
-SESSION_ID_FILE=".session_id"
+LOCAL_TEMP_DIR="temp"
+SESSION_ID_FILE="$LOCAL_TEMP_DIR/.session_id"
 EASY_MODEL="composer-2.5"
 MEDIUM_MODEL="claude-5-sonnet-medium-thinking"
 HARD_MODEL="claude-5-sonnet-medium-thinking"
@@ -77,8 +78,10 @@ elif $USE_EASY; then
     AI_MODEL="$EASY_MODEL"
 fi
 
+mkdir -p "$LOCAL_TEMP_DIR"
+
 if [[ -z "$PROMPTFILE" ]]; then
-    PROMPTFILE=".prompt.txt"
+    PROMPTFILE="$LOCAL_TEMP_DIR/.prompt.txt"
     echo "✏️  Opening $EDITOR for your prompt…"
     run $EDITOR "$PROMPTFILE"
 
