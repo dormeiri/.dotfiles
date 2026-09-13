@@ -1,3 +1,7 @@
+# {Title of the spec}
+
+Task: {Link to the task in Port MCP or Port CLI, if available, use branch name for task ID if not provided}
+
 ## Problem Statement
 
 {The problem that the user is facing, from the user's perspective}

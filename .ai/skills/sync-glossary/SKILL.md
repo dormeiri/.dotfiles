@@ -1,6 +1,7 @@
 ---
 name: sync-glossary
 description: Explore and sync the GLOSSARY.md file that defines the domain terms used in the project.
+disable-model-invocation: true
 ---
 
 # Write Glossary

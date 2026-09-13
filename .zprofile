@@ -38,6 +38,12 @@ alias d="docker"
 alias awslocal="aws --endpoint-url http://localhost:4566"
 alias ghd="gh dash"
 alias dotfiles="cd $HOME/.dotfiles"
+restow() {
+    cd "$HOME/.dotfiles"
+    stow -R --ignore='^\.ai$' .
+    stow -R .ai -t ~/.claude
+    stow -R .ai -t ~/.cursor
+}
 alias gprofile="$EDITOR $HOME/.config/ghostty/config"
 
 export PROFILE_PATH="$HOME/.zprofile"
