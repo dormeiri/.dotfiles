@@ -13,7 +13,9 @@ touch ~/.credentials
 touch ~/.hushlogin
 
 cd ~/.dotfiles
-stow .
+stow --ignore='^\.ai$' .
+stow .ai -t ~/.claude
+stow .ai -t ~/.cursor
 
 source ~/.zprofile
 yolo
