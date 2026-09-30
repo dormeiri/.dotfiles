@@ -30,7 +30,7 @@ usage() {
     echo "  --easy            Use composer-2 (mutually exclusive with --hard)"
     echo "  --setup <script>  Custom setup script to run after creating worktree"
     echo "  --prompt-content <text>"
-    echo "                    Prefill the prompt (with --ai), else save it to $LOCAL_TEMP_DIR/.prompt.txt"
+    echo "                    Prefill the prompt (with --ai), else just save it to $LOCAL_TEMP_DIR/.prompt.txt"
     echo "  --dry-run         Print actions without executing"
     echo "  --help            Show this help message"
     echo ""
@@ -81,7 +81,8 @@ cd "$WT_DIR"
 # ─── Prompt (before setup so editor opens while deps install) ─────────────────
 PROMPTFILE=""
 if $USE_AI; then
-    PROMPTFILE=".prompt.txt"
+    PROMPTFILE="$LOCAL_TEMP_DIR/.prompt.txt"
+    mkdir -p "$LOCAL_TEMP_DIR"
     [[ -n "$PROMPT_CONTENT" ]] && echo "$PROMPT_CONTENT" > "$PROMPTFILE"
     echo "✏️  Opening ${EDITOR:-nvim} for your prompt…"
     if ! $DRY_RUN; then
@@ -92,12 +93,11 @@ if $USE_AI; then
         fi
     fi
 elif [[ -n "$PROMPT_CONTENT" ]]; then
-    SAVED_PROMPT="$LOCAL_TEMP_DIR/.prompt.txt"
     if ! $DRY_RUN; then
         mkdir -p "$LOCAL_TEMP_DIR"
-        echo "$PROMPT_CONTENT" > "$SAVED_PROMPT"
+        echo "$PROMPT_CONTENT" > "$LOCAL_TEMP_DIR/.prompt.txt"
     fi
-    echo "📝 No --ai, so no agent will run. Prompt saved to $WT_DIR/$SAVED_PROMPT"
+    echo "📝 No --ai, so no agent will run. Prompt saved to $WT_DIR/$LOCAL_TEMP_DIR/.prompt.txt"
 fi
 
 # ─── Setup ───────────────────────────────────────────────────────────────────
