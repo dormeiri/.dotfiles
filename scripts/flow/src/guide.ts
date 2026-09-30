@@ -1,9 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import type { Config } from "./config.ts";
-import type { ClaudeLaunch, Effects } from "./effects.ts";
+import type { ClaudeLaunch, Effects, PortTask } from "./effects.ts";
 import { errorMessage } from "./errors.ts";
-import { mainRepoWarning, nextChoices, STAGE_LABELS, setupGate } from "./stage-machine.ts";
+import {
+  mainRepoWarning,
+  nextChoices,
+  runsInWorktree,
+  STAGE_LABELS,
+  setupGate,
+} from "./stage-machine.ts";
 import { grillPrompt, implementPrompt, researchPrompt, reviewPrompt } from "./stage-prompts.ts";
 import type { SessionStage, Stage, TaskState } from "./state.ts";
 import { taskUrl } from "./task.ts";
@@ -68,7 +74,7 @@ function runStage(ctx: Context, taskId: string, stage: Stage): Promise<boolean> 
 
 async function verifyTask(ctx: Context, taskId: string): Promise<boolean> {
   const { fx } = ctx;
-  await taskDetails(ctx, await loadTask(ctx, taskId));
+  await refreshTaskDetails(ctx, await loadTask(ctx, taskId));
   const url = taskUrl(taskId);
   await fx.proc.openUrl(url);
   fx.log.info(`Opened ${url}`);
@@ -125,7 +131,7 @@ async function sessionCwd(
   stage: SessionStage,
 ): Promise<string | undefined> {
   const { fx, config } = ctx;
-  if (stage === "impl" || stage === "review") return ensureWorktree(ctx, taskId);
+  if (runsInWorktree(stage)) return ensureWorktree(ctx, taskId);
   const warning = mainRepoWarning(await fx.git.currentBranch(config.mainRepo));
   if (warning) fx.log.warn(warning);
   await fx.fs.ensureDir(dirname((await loadTask(ctx, taskId)).specPath));
@@ -158,11 +164,21 @@ async function ensureWorktree(ctx: Context, taskId: string): Promise<string | un
         fx.log.error(
           `The worktree setup failed${gate.reason ? `: ${gate.reason}` : ""}. Log: ${gate.logPath}`,
         );
+        const { worktreePath } = gate;
         const choice = await fx.prompts.select("Fix the cause, then", [
+          ...(worktreePath
+            ? [{ value: "fixed" as const, label: `I fixed it in ${worktreePath}, continue` }]
+            : []),
           { value: "retry", label: "Retry the setup in the background" },
           { value: "exit", label: "Exit" },
         ]);
-        if (choice !== "retry" || !(await startSetup(ctx, taskId))) return undefined;
+        if (choice === "fixed") {
+          await fx.store.update(taskId, (task) => {
+            task.setup = { status: "ready", logPath: gate.logPath };
+          });
+        } else if (choice !== "retry" || !(await startSetup(ctx, taskId))) {
+          return undefined;
+        }
         break;
       }
     }
@@ -187,12 +203,11 @@ async function planLaunch(
   stage: SessionStage,
   cwd: string,
 ): Promise<ClaudeLaunch | undefined> {
-  const inWorktree = stage === "impl" || stage === "review";
-  const base = {
+  const options = {
     cwd,
     permissionMode: stage === "impl" ? ("auto" as const) : undefined,
     // Research and spec live in the main repo's .scratch/, outside the worktree.
-    addDirs: inWorktree ? [dirname(task.specPath)] : [],
+    addDirs: runsInWorktree(stage) ? [dirname(task.specPath)] : [],
   };
   const previous = task.stages[stage].sessionId;
   if (previous) {
@@ -201,10 +216,10 @@ async function planLaunch(
       { value: "fresh", label: "Start a fresh session" },
     ]);
     if (!choice) return undefined;
-    if (choice === "resume") return { ...base, session: { kind: "resume", id: previous } };
+    if (choice === "resume") return { ...options, session: { kind: "resume", id: previous } };
   }
   const prompt = await stagePrompt(ctx, task, stage, cwd);
-  return prompt ? { ...base, session: { kind: "fresh", id: randomUUID(), prompt } } : undefined;
+  return prompt ? { ...options, session: { kind: "fresh", id: randomUUID(), prompt } } : undefined;
 }
 
 async function stagePrompt(
@@ -218,20 +233,23 @@ async function stagePrompt(
   const researchPath = (await fx.fs.exists(task.researchPath)) ? task.researchPath : undefined;
   switch (stage) {
     case "research": {
-      const template = researchTemplate(await taskDetails(ctx, task));
+      const template = researchTemplate(await refreshTaskDetails(ctx, task));
       const question = editorResult(template, await fx.proc.editText(template));
       if (!question) fx.log.warn("No question written, so research was cancelled.");
       return question && researchPrompt({ taskId, question, researchPath: task.researchPath });
     }
     case "spec": {
-      const template = solutionTemplate(await taskDetails(ctx, task), researchPath);
+      const template = solutionTemplate(await refreshTaskDetails(ctx, task), researchPath);
       const solution = editorResult(template, await fx.proc.editText(template));
       if (!solution) fx.log.warn("No proposed solution written, so the spec was cancelled.");
       return solution && grillPrompt({ taskId, solution, specPath });
     }
     case "impl": {
-      if (!(await fx.fs.exists(specPath))) {
-        fx.log.error(`There's no spec at ${specPath}. Run \`flow spec\` first.`);
+      const hasSpec = await fx.fs.exists(specPath);
+      if (
+        !hasSpec &&
+        !(await fx.prompts.confirm(`There's no spec at ${specPath}. Implement anyway?`))
+      ) {
         return undefined;
       }
       return implementPrompt({ taskId, specPath, researchPath });
@@ -301,18 +319,23 @@ async function findOutput(
   return (await ctx.fx.fs.exists(path)) ? { found: true } : { found: false, expected: path };
 }
 
-// Always read fresh from Port: the user is told to fix wrong tasks there, not in flow.
-export async function taskDetails(ctx: Context, task: TaskState): Promise<TaskDetails> {
-  const { taskId } = task;
+export async function fetchPortTask(ctx: Context, taskId: string): Promise<PortTask | undefined> {
   try {
-    const port = await ctx.fx.proc.getPortTask(taskId);
-    await ctx.fx.store.update(taskId, (t) => {
-      t.title = port.title;
-      t.branch = port.branch ?? t.branch;
-    });
-    return { taskId, title: port.title, description: port.description };
+    return await ctx.fx.proc.getPortTask(taskId);
   } catch (error) {
     ctx.fx.log.warn(`Couldn't fetch ${taskId} from Port (${errorMessage(error)}).`);
-    return { taskId, title: task.title, description: "" };
+    return undefined;
   }
+}
+
+// Always read fresh from Port: the user is told to fix wrong tasks there, not in flow.
+async function refreshTaskDetails(ctx: Context, task: TaskState): Promise<TaskDetails> {
+  const { taskId } = task;
+  const port = await fetchPortTask(ctx, taskId);
+  if (!port) return { taskId, title: task.title, description: "" };
+  await ctx.fx.store.update(taskId, (t) => {
+    t.title = port.title;
+    t.branch = port.branch ?? t.branch;
+  });
+  return { taskId, title: port.title, description: port.description };
 }

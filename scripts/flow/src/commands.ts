@@ -1,6 +1,5 @@
-import type { Choice, PortTask } from "./effects.ts";
-import { errorMessage } from "./errors.ts";
-import { type Context, chooseNext, loadTask, runFrom } from "./guide.ts";
+import type { Choice } from "./effects.ts";
+import { type Context, chooseNext, fetchPortTask, loadTask, runFrom } from "./guide.ts";
 import { headlessResultText, parseTaskIdMarker } from "./marker.ts";
 import { resolveTask } from "./resolve.ts";
 import { setupGate } from "./stage-machine.ts";
@@ -10,7 +9,10 @@ import { describeNext, formatStatus } from "./status.ts";
 import { artifactPaths, taskUrl } from "./task.ts";
 import { editorResult, intakeTemplate } from "./templates.ts";
 
-export const CREATE_TASK_TOOLS = ["mcp__port", "Bash(port:*)", "Skill(port-cli)"];
+// Port MCP is the claude.ai "Port IO" connector; the port-cli skill is the fallback /create-task names.
+export const CREATE_TASK_TOOLS = ["mcp__claude_ai_Port_IO", "Bash(port:*)", "Skill(port-cli)"];
+
+const NO_TASKS = "No tasks in flight. Start one with `flow new`.";
 
 function taskChoice(task: TaskState): Choice<string> {
   return { value: task.taskId, label: `${task.taskId} · ${task.title}`, hint: describeNext(task) };
@@ -18,7 +20,7 @@ function taskChoice(task: TaskState): Choice<string> {
 
 async function inFlight(ctx: Context): Promise<TaskState[]> {
   const tasks = (await ctx.fx.store.list()).filter((task) => !task.archived);
-  if (tasks.length === 0) ctx.fx.log.info("No tasks in flight. Start one with `flow new`.");
+  if (tasks.length === 0) ctx.fx.log.info(NO_TASKS);
   return tasks;
 }
 
@@ -34,7 +36,7 @@ async function resolveTaskId(
     case "unknown":
       throw new Error(`${resolution.taskId} isn't tracked by flow.`);
     case "none":
-      ctx.fx.log.info("No tasks in flight. Start one with `flow new`.");
+      ctx.fx.log.info(NO_TASKS);
       return undefined;
     case "pick":
       return ctx.fx.prompts.pick("Which task?", resolution.candidates.map(taskChoice));
@@ -76,12 +78,7 @@ async function createTask(ctx: Context, input: string | undefined): Promise<stri
     fx.log.info(`${taskId} is already tracked.`);
     return taskId;
   }
-  let port: PortTask | undefined;
-  try {
-    port = await fx.proc.getPortTask(taskId);
-  } catch (error) {
-    fx.log.warn(`Couldn't fetch ${taskId} from Port (${errorMessage(error)}).`);
-  }
+  const port = await fetchPortTask(ctx, taskId);
   await fx.store.create(
     newTaskState({
       taskId,
@@ -128,7 +125,8 @@ export async function statusCommand(ctx: Context, explicit: string | undefined):
 }
 
 export async function openCommand(ctx: Context, explicit: string | undefined): Promise<void> {
-  const taskId = await resolveTaskId(ctx, explicit);
+  // Any task can be opened, tracked by flow or not.
+  const taskId = explicit ?? (await resolveTaskId(ctx, undefined));
   if (!taskId) return;
   const url = taskUrl(taskId);
   await ctx.fx.proc.openUrl(url);

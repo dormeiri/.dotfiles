@@ -1,4 +1,4 @@
-import type { Stage, TaskState } from "./state.ts";
+import type { SessionStage, Stage, TaskState } from "./state.ts";
 
 const REQUIRED: Stage[] = ["new", "spec", "impl", "review"];
 
@@ -14,7 +14,10 @@ export function nextStage(task: TaskState): Stage | undefined {
   return REQUIRED.find((stage) => !task.stages[stage].done);
 }
 
-// Research is optional: it's offered alongside spec until spec is done, but never blocks it.
+export function runsInWorktree(stage: SessionStage): boolean {
+  return stage === "impl" || stage === "review";
+}
+
 export function nextChoices(task: TaskState): Stage[] {
   const next = nextStage(task);
   if (!next) return [];
@@ -26,12 +29,13 @@ export type SetupGate =
   | { kind: "not-started" }
   | { kind: "running"; logPath: string }
   | { kind: "ready"; worktreePath: string }
-  | { kind: "failed"; logPath: string; reason?: string };
+  | { kind: "failed"; logPath: string; reason?: string; worktreePath?: string };
 
 export function setupGate(task: TaskState, isAlive: (pid: number) => boolean): SetupGate {
   const setup = task.setup;
   if (!setup) return { kind: "not-started" };
   const { logPath } = setup;
+  const { worktreePath } = task;
   switch (setup.status) {
     case "running":
       // A runner killed by a reboot or crash never records its outcome, so it would look running forever.
@@ -39,16 +43,17 @@ export function setupGate(task: TaskState, isAlive: (pid: number) => boolean): S
         return {
           kind: "failed",
           logPath,
+          worktreePath,
           reason: "the setup runner exited without recording a result",
         };
       }
       return { kind: "running", logPath };
     case "ready":
-      return task.worktreePath
-        ? { kind: "ready", worktreePath: task.worktreePath }
+      return worktreePath
+        ? { kind: "ready", worktreePath }
         : { kind: "failed", logPath, reason: "no worktree path was recorded" };
     case "failed":
-      return { kind: "failed", logPath, reason: setup.error };
+      return { kind: "failed", logPath, worktreePath, reason: setup.error };
   }
 }
 

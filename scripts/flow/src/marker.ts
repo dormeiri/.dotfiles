@@ -1,4 +1,4 @@
-// Tolerates markdown decoration around the marker, e.g. `**TASK_ID:** task_123` or `` `TASK_ID: task_123` ``.
+// Claude sometimes decorates the line with markdown (`**TASK_ID:** task_1`) even when asked for plain text.
 const MARKER = /^[\s>*_`]*TASK_ID[*_`]*\s*:[\s*_`]*([\w-]+)/gm;
 
 export function parseTaskIdMarker(output: string): string | undefined {

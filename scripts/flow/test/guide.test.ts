@@ -4,9 +4,11 @@ import {
   CREATE_TASK_TOOLS,
   homeCommand,
   newCommand,
+  openCommand,
   stageCommand,
   statusCommand,
 } from "../src/commands.ts";
+import type { TaskState } from "../src/state.ts";
 import { fakeContext, MAIN_REPO, readyWorktree } from "./fakes.ts";
 
 const RESEARCH = `${MAIN_REPO}/.scratch/task_1/research.md`;
@@ -60,7 +62,9 @@ describe("flow new", () => {
     ]);
   });
 
-  test("only allows Port tools in the headless run", () => {
+  test("only allows the Port MCP connector and the port CLI in the headless run", () => {
+    expect(CREATE_TASK_TOOLS).toContain("mcp__claude_ai_Port_IO");
+    expect(CREATE_TASK_TOOLS).toContain("Bash(port:*)");
     expect(CREATE_TASK_TOOLS.every((tool) => /port/i.test(tool))).toBe(true);
   });
 
@@ -321,14 +325,23 @@ describe("implement", () => {
     expect(fake.prompts.map((p) => p.message)).toEqual(["Continue to Review?"]);
   });
 
-  test("refuses to start without a spec file", async () => {
-    const fake = fakeContext();
+  test("asks before implementing without a spec file", async () => {
+    const fake = fakeContext({ answers: [false] });
     await fake.seed("task_1", readyWorktree);
 
     await stageCommand(fake.ctx, "impl", "task_1");
 
+    expect(fake.prompts[0]?.message).toContain(SPEC);
     expect(fake.launches).toEqual([]);
-    expect(fake.logged("error")[0]).toContain(SPEC);
+  });
+
+  test("implements without a spec file when the user insists", async () => {
+    const fake = fakeContext({ answers: [true, "leave"] });
+    await fake.seed("task_1", readyWorktree);
+
+    await stageCommand(fake.ctx, "impl", "task_1");
+
+    expect(fake.launches).toHaveLength(1);
   });
 
   test("while setup is running, exiting launches nothing", async () => {
@@ -380,12 +393,15 @@ describe("implement", () => {
     expect(fake.launches[0]?.cwd).toBe(WORKTREE);
   });
 
+  const failedBeforeWorktree = (t: TaskState) => {
+    readyWorktree(t);
+    t.worktreePath = undefined;
+    t.setup = { status: "failed", logPath: "/logs/task_1.log", error: "Branch exists" };
+  };
+
   test("a failed setup is reported with its reason and log path", async () => {
     const fake = fakeContext({ answers: ["exit"], files: [SPEC] });
-    await fake.seed("task_1", (t) => {
-      readyWorktree(t);
-      t.setup = { status: "failed", logPath: "/logs/task_1.log", error: "Branch exists" };
-    });
+    await fake.seed("task_1", failedBeforeWorktree);
 
     await stageCommand(fake.ctx, "impl", "task_1");
 
@@ -397,10 +413,7 @@ describe("implement", () => {
 
   test("retrying a failed setup restarts it in the background", async () => {
     const fake = fakeContext({ answers: ["retry", "exit"], files: [SPEC] });
-    await fake.seed("task_1", (t) => {
-      readyWorktree(t);
-      t.setup = { status: "failed", logPath: "/logs/task_1.log", error: "Branch exists" };
-    });
+    await fake.seed("task_1", failedBeforeWorktree);
 
     await stageCommand(fake.ctx, "impl", "task_1");
 
@@ -421,7 +434,22 @@ describe("implement", () => {
 
     await stageCommand(fake.ctx, "impl", "task_1");
 
-    expect(fake.prompts[0]?.options).toEqual(["retry", "exit"]);
+    expect(fake.prompts[0]?.options).toEqual(["fixed", "retry", "exit"]);
+  });
+
+  test("a setup that failed after creating the worktree can be fixed in place", async () => {
+    const fake = fakeContext({ answers: ["fixed", "leave"], files: [SPEC] });
+    await fake.seed("task_1", (t) => {
+      readyWorktree(t);
+      t.setup = { status: "failed", logPath: "/logs/task_1.log", error: "yarn failed" };
+    });
+
+    await stageCommand(fake.ctx, "impl", "task_1");
+
+    expect(fake.prompts[0]?.options).toEqual(["fixed", "retry", "exit"]);
+    expect((await fake.task("task_1")).setup?.status).toBe("ready");
+    expect(fake.spawnedRunners).toEqual([]);
+    expect(fake.launches[0]?.cwd).toBe(WORKTREE);
   });
 
   test("no PR after the session offers recovery", async () => {
@@ -554,6 +582,21 @@ describe("status and archive", () => {
     expect(output).toContain("✔ spec");
     expect(output).toContain(`setup: ready (${WORKTREE})`);
     expect(output).toContain("next: impl");
+  });
+
+  test("open works for any explicit task, tracked or not", async () => {
+    const opened: string[] = [];
+    const fake = fakeContext({
+      proc: {
+        openUrl: async (url) => {
+          opened.push(url);
+        },
+      },
+    });
+
+    await openCommand(fake.ctx, "task_untracked");
+
+    expect(opened).toEqual(["https://app.getport.io/taskEntity?identifier=task_untracked"]);
   });
 
   test("archive removes the task from the in-flight list", async () => {

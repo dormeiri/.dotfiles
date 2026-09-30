@@ -28,19 +28,12 @@ export const taskStateSchema = z.object({
   researchPath: z.string(),
   specPath: z.string(),
   prUrl: z.string().optional(),
-  stages: z.object({
-    new: stageStateSchema,
-    research: stageStateSchema,
-    spec: stageStateSchema,
-    impl: stageStateSchema,
-    review: stageStateSchema,
-  }),
+  stages: z.record(z.enum(STAGES), stageStateSchema),
   archived: z.boolean(),
   createdAt: z.iso.datetime(),
 });
 
 export type TaskState = z.infer<typeof taskStateSchema>;
-export type SetupState = NonNullable<TaskState["setup"]>;
 
 export class StateError extends Error {}
 
@@ -83,7 +76,6 @@ export function newTaskState(init: {
   specPath: string;
   now: Date;
 }): TaskState {
-  const pending = () => ({ done: false });
   return {
     version: STATE_VERSION,
     taskId: init.taskId,
@@ -91,13 +83,9 @@ export function newTaskState(init: {
     branch: init.branch,
     researchPath: init.researchPath,
     specPath: init.specPath,
-    stages: {
-      new: pending(),
-      research: pending(),
-      spec: pending(),
-      impl: pending(),
-      review: pending(),
-    },
+    stages: Object.fromEntries(
+      STAGES.map((stage) => [stage, { done: false }]),
+    ) as TaskState["stages"],
     archived: false,
     createdAt: init.now.toISOString(),
   };

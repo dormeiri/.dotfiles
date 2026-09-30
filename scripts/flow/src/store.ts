@@ -1,4 +1,4 @@
-import { access, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { errorMessage } from "./errors.ts";
 import { parseTaskState, StateError, type TaskState, taskStateSchema } from "./state.ts";
@@ -9,6 +9,32 @@ export interface StateStore {
   create(task: TaskState): Promise<void>;
   update(taskId: string, change: (task: TaskState) => void): Promise<TaskState>;
   setupLogPath(taskId: string): string;
+}
+
+const LOCK_RETRY_MS = 20;
+const STALE_LOCK_MS = 2000;
+
+// The CLI and the detached setup runner both update the same task file; without a lock one
+// read-modify-write can silently undo the other's (e.g. a session ID write erasing "setup ready").
+async function withLock<T>(file: string, run: () => Promise<T>): Promise<T> {
+  const lock = `${file}.lock`;
+  const started = Date.now();
+  while (true) {
+    try {
+      await mkdir(lock);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      // Holders keep the lock for milliseconds, so one this old was left by a crashed process.
+      if (Date.now() - started > STALE_LOCK_MS) await rm(lock, { recursive: true, force: true });
+      else await Bun.sleep(LOCK_RETRY_MS);
+    }
+  }
+  try {
+    return await run();
+  } finally {
+    await rm(lock, { recursive: true, force: true });
+  }
 }
 
 export function fileStore(stateDir: string): StateStore {
@@ -58,11 +84,14 @@ export function fileStore(stateDir: string): StateStore {
       await write(task);
     },
     async update(taskId, change) {
-      const task = await get(taskId);
-      if (!task) throw new StateError(`${taskId} isn't tracked by flow`);
-      change(task);
-      await write(task);
-      return task;
+      await mkdir(tasksDir, { recursive: true });
+      return withLock(taskFile(taskId), async () => {
+        const task = await get(taskId);
+        if (!task) throw new StateError(`${taskId} isn't tracked by flow`);
+        change(task);
+        await write(task);
+        return task;
+      });
     },
     setupLogPath: (taskId) => join(stateDir, "logs", `${taskId}-setup.log`),
   };

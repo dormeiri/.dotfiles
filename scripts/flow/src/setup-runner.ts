@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// Spawned detached by `flow new`; its stdout/stderr are the task's setup log.
+// Spawned detached by flow so setup outlives it; stdout/stderr are the task's setup log.
 import { loadConfig } from "./config.ts";
 import { errorMessage } from "./errors.ts";
 import { realEffects } from "./real-effects.ts";

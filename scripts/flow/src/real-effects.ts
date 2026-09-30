@@ -52,6 +52,10 @@ function foreground(
   );
 }
 
+function failure(result: ProcResult): Error {
+  return new Error(result.stderr.trim() || result.stdout.trim());
+}
+
 const portEntitySchema = z.object({
   title: z.string().nullish(),
   properties: z
@@ -99,7 +103,7 @@ function processRunner(config: Config): ProcessRunner {
 
     async getPortTask(taskId) {
       const result = await capture(["port", "api", "entities", "get", "task", taskId]);
-      if (result.exitCode !== 0) throw new Error(result.stderr.trim() || result.stdout.trim());
+      if (result.exitCode !== 0) throw failure(result);
       const entity = portEntitySchema.parse(JSON.parse(result.stdout));
       return {
         title: entity.title ?? taskId,
@@ -119,7 +123,7 @@ function processRunner(config: Config): ProcessRunner {
         "--data",
         JSON.stringify({ properties: { status } }),
       ]);
-      if (result.exitCode !== 0) throw new Error(result.stderr.trim() || result.stdout.trim());
+      if (result.exitCode !== 0) throw failure(result);
     },
 
     async assume(profile) {

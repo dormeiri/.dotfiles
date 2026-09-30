@@ -3,7 +3,14 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { migrate, newTaskState, parseTaskState, STATE_VERSION, StateError } from "../src/state.ts";
+import {
+  migrate,
+  newTaskState,
+  parseTaskState,
+  STAGES,
+  STATE_VERSION,
+  StateError,
+} from "../src/state.ts";
 import { fileStore } from "../src/store.ts";
 
 function state(taskId = "task_1", now = new Date("2026-01-01T00:00:00Z")) {
@@ -75,6 +82,32 @@ describe("fileStore", () => {
       t.stages.spec.done = true;
     });
     expect((await s.get("task_1"))?.stages.spec.done).toBe(true);
+  });
+
+  test("concurrent updates from separate stores don't undo each other", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "flow-store-"));
+    await fileStore(dir).create(state());
+    await Promise.all(
+      STAGES.map((stage, i) =>
+        fileStore(dir).update("task_1", (t) => {
+          t.stages[stage].done = true;
+          if (i === 0) t.setup = { status: "ready", logPath: "/log" };
+        }),
+      ),
+    );
+    const task = await fileStore(dir).get("task_1");
+    expect(STAGES.every((stage) => task?.stages[stage].done)).toBe(true);
+    expect(task?.setup?.status).toBe("ready");
+  });
+
+  test("a lock left behind by a crashed process doesn't block updates forever", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "flow-store-"));
+    await fileStore(dir).create(state());
+    await mkdir(join(dir, "tasks", "task_1.json.lock"));
+    await fileStore(dir).update("task_1", (t) => {
+      t.archived = true;
+    });
+    expect((await fileStore(dir).get("task_1"))?.archived).toBe(true);
   });
 
   test("refuses to create a task twice or update an untracked one", async () => {
