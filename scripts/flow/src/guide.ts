@@ -1,34 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
-import type { Config } from "./config.ts";
-import type { ClaudeLaunch, Effects, PortTask } from "./effects.ts";
-import { errorMessage } from "./errors.ts";
-import {
-  mainRepoWarning,
-  nextChoices,
-  runsInWorktree,
-  STAGE_LABELS,
-  setupGate,
-} from "./stage-machine.ts";
-import { grillPrompt, implementPrompt, researchPrompt, reviewPrompt } from "./stage-prompts.ts";
-import type { SessionStage, Stage, TaskState } from "./state.ts";
+import { type Context, loadTask, refreshTaskDetails } from "./context.ts";
+import type { ClaudeLaunch } from "./effects.ts";
+import { mainRepoWarning, SESSION_STAGES, type Session } from "./session-stages.ts";
+import { AWS_PROFILE } from "./setup.ts";
+import { nextChoices, STAGE_LABELS, setupGate } from "./stage-machine.ts";
+import type { SessionStage, Stage } from "./state.ts";
 import { taskUrl } from "./task.ts";
-import { editorResult, researchTemplate, solutionTemplate, type TaskDetails } from "./templates.ts";
 
-export interface Context {
-  fx: Effects;
-  config: Config;
-  cwd: string;
-}
-
-const ASSUME_PROFILE = "Local/DeveloperAccess";
 const SETUP_POLL_MS = 2000;
-
-export async function loadTask(ctx: Context, taskId: string): Promise<TaskState> {
-  const task = await ctx.fx.store.get(taskId);
-  if (!task) throw new Error(`${taskId} isn't tracked by flow`);
-  return task;
-}
 
 export async function runFrom(ctx: Context, taskId: string, stage: Stage): Promise<void> {
   let current: Stage | undefined = stage;
@@ -92,8 +72,8 @@ async function verifyTask(ctx: Context, taskId: string): Promise<boolean> {
 export async function startSetup(ctx: Context, taskId: string): Promise<boolean> {
   const { fx } = ctx;
   // Setup runs `assume` too; authenticating here first means the background run never waits on an SSO prompt.
-  if (!(await fx.proc.assume(ASSUME_PROFILE))) {
-    fx.log.error(`\`assume ${ASSUME_PROFILE}\` failed, so the worktree setup wasn't started.`);
+  if (!(await fx.proc.assume(AWS_PROFILE))) {
+    fx.log.error(`\`assume ${AWS_PROFILE}\` failed, so the worktree setup wasn't started.`);
     return false;
   }
   const logPath = fx.store.setupLogPath(taskId);
@@ -111,7 +91,7 @@ async function runSession(ctx: Context, taskId: string, stage: SessionStage): Pr
   const cwd = await sessionCwd(ctx, taskId, stage);
   if (!cwd) return false;
   while (true) {
-    const launch = await planLaunch(ctx, await loadTask(ctx, taskId), stage, cwd);
+    const launch = await planLaunch({ ctx, task: await loadTask(ctx, taskId), stage, cwd });
     if (!launch) return false;
     const { session } = launch;
     if (session.kind === "fresh") {
@@ -120,7 +100,7 @@ async function runSession(ctx: Context, taskId: string, stage: SessionStage): Pr
       });
     }
     await ctx.fx.proc.claudeInteractive(launch);
-    const outcome = await finishSession(ctx, taskId, stage, cwd);
+    const outcome = await finishSession({ ctx, task: await loadTask(ctx, taskId), stage, cwd });
     if (outcome !== "retry") return outcome === "done";
   }
 }
@@ -131,7 +111,7 @@ async function sessionCwd(
   stage: SessionStage,
 ): Promise<string | undefined> {
   const { fx, config } = ctx;
-  if (runsInWorktree(stage)) return ensureWorktree(ctx, taskId);
+  if (SESSION_STAGES[stage].inWorktree) return ensureWorktree(ctx, taskId);
   const warning = mainRepoWarning(await fx.git.currentBranch(config.mainRepo));
   if (warning) fx.log.warn(warning);
   await fx.fs.ensureDir(dirname((await loadTask(ctx, taskId)).specPath));
@@ -197,17 +177,14 @@ async function waitForSetup(ctx: Context, taskId: string, logPath: string): Prom
   }
 }
 
-async function planLaunch(
-  ctx: Context,
-  task: TaskState,
-  stage: SessionStage,
-  cwd: string,
-): Promise<ClaudeLaunch | undefined> {
+async function planLaunch(session: Session): Promise<ClaudeLaunch | undefined> {
+  const { ctx, task, stage, cwd } = session;
+  const spec = SESSION_STAGES[stage];
   const options = {
     cwd,
-    permissionMode: stage === "impl" ? ("auto" as const) : undefined,
+    permissionMode: spec.permissionMode,
     // Research and spec live in the main repo's .scratch/, outside the worktree.
-    addDirs: runsInWorktree(stage) ? [dirname(task.specPath)] : [],
+    addDirs: spec.inWorktree ? [dirname(task.specPath)] : [],
   };
   const previous = task.stages[stage].sessionId;
   if (previous) {
@@ -218,74 +195,32 @@ async function planLaunch(
     if (!choice) return undefined;
     if (choice === "resume") return { ...options, session: { kind: "resume", id: previous } };
   }
-  const prompt = await stagePrompt(ctx, task, stage, cwd);
+  const prompt = await spec.prompt(session);
   return prompt ? { ...options, session: { kind: "fresh", id: randomUUID(), prompt } } : undefined;
-}
-
-async function stagePrompt(
-  ctx: Context,
-  task: TaskState,
-  stage: SessionStage,
-  cwd: string,
-): Promise<string | undefined> {
-  const { fx } = ctx;
-  const { taskId, specPath } = task;
-  const researchPath = (await fx.fs.exists(task.researchPath)) ? task.researchPath : undefined;
-  switch (stage) {
-    case "research": {
-      const template = researchTemplate(await refreshTaskDetails(ctx, task));
-      const question = editorResult(template, await fx.proc.editText(template));
-      if (!question) fx.log.warn("No question written, so research was cancelled.");
-      return question && researchPrompt({ taskId, question, researchPath: task.researchPath });
-    }
-    case "spec": {
-      const template = solutionTemplate(await refreshTaskDetails(ctx, task), researchPath);
-      const solution = editorResult(template, await fx.proc.editText(template));
-      if (!solution) fx.log.warn("No proposed solution written, so the spec was cancelled.");
-      return solution && grillPrompt({ taskId, solution, specPath });
-    }
-    case "impl": {
-      const hasSpec = await fx.fs.exists(specPath);
-      if (
-        !hasSpec &&
-        !(await fx.prompts.confirm(`There's no spec at ${specPath}. Implement anyway?`))
-      ) {
-        return undefined;
-      }
-      return implementPrompt({ taskId, specPath, researchPath });
-    }
-    case "review": {
-      const base = (await fx.git.mergeBase(cwd, "origin/main")) ?? "origin/main";
-      return reviewPrompt({ taskId, specPath, base, prUrl: task.prUrl });
-    }
-  }
 }
 
 type SessionOutcome = "done" | "retry" | "leave";
 
-async function finishSession(
-  ctx: Context,
-  taskId: string,
-  stage: SessionStage,
-  cwd: string,
-): Promise<SessionOutcome> {
+async function finishSession(session: Session): Promise<SessionOutcome> {
+  const { ctx, task, stage } = session;
   const { fx } = ctx;
   const markDone = (prUrl?: string) =>
-    fx.store.update(taskId, (task) => {
-      task.stages[stage].done = true;
-      if (prUrl) task.prUrl = prUrl;
+    fx.store.update(task.taskId, (t) => {
+      t.stages[stage].done = true;
+      if (prUrl) t.prUrl = prUrl;
     });
 
-  if (stage === "review") {
-    if (!(await fx.prompts.confirm("Is the review done?"))) {
-      fx.log.info("Pick it up later with `flow review`.");
+  const { findOutput } = SESSION_STAGES[stage];
+  if (!findOutput) {
+    if (!(await fx.prompts.confirm(`Is the ${stage} done?`))) {
+      fx.log.info(`Pick it up later with \`flow ${stage}\`.`);
       return "leave";
     }
     await markDone();
     return "done";
   }
 
-  const output = await findOutput(ctx, await loadTask(ctx, taskId), stage, cwd);
+  const output = await findOutput(session);
   if (output.found) {
     await markDone(output.prUrl);
     fx.log.success(`${STAGE_LABELS[stage]} done${output.prUrl ? `: ${output.prUrl}` : ""}.`);
@@ -303,39 +238,4 @@ async function finishSession(
   }
   if (choice !== "retry") fx.log.info(`Pick it up later with \`flow ${stage}\`.`);
   return choice ?? "leave";
-}
-
-async function findOutput(
-  ctx: Context,
-  task: TaskState,
-  stage: Exclude<SessionStage, "review">,
-  cwd: string,
-): Promise<{ found: true; prUrl?: string } | { found: false; expected: string }> {
-  if (stage === "impl") {
-    const prUrl = await ctx.fx.proc.prUrl(cwd);
-    return prUrl ? { found: true, prUrl } : { found: false, expected: "a PR for this branch" };
-  }
-  const path = stage === "research" ? task.researchPath : task.specPath;
-  return (await ctx.fx.fs.exists(path)) ? { found: true } : { found: false, expected: path };
-}
-
-export async function fetchPortTask(ctx: Context, taskId: string): Promise<PortTask | undefined> {
-  try {
-    return await ctx.fx.proc.getPortTask(taskId);
-  } catch (error) {
-    ctx.fx.log.warn(`Couldn't fetch ${taskId} from Port (${errorMessage(error)}).`);
-    return undefined;
-  }
-}
-
-// Always read fresh from Port: the user is told to fix wrong tasks there, not in flow.
-async function refreshTaskDetails(ctx: Context, task: TaskState): Promise<TaskDetails> {
-  const { taskId } = task;
-  const port = await fetchPortTask(ctx, taskId);
-  if (!port) return { taskId, title: task.title, description: "" };
-  await ctx.fx.store.update(taskId, (t) => {
-    t.title = port.title;
-    t.branch = port.branch ?? t.branch;
-  });
-  return { taskId, title: port.title, description: port.description };
 }

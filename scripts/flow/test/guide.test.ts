@@ -525,7 +525,7 @@ describe("picking the task", () => {
 
     await stageCommand(fake.ctx, "review", undefined);
 
-    expect(fake.prompts[0]).toMatchObject({ kind: "pick", options: ["task_1", "task_2"] });
+    expect(fake.prompts[0]).toMatchObject({ kind: "filterSelect", options: ["task_1", "task_2"] });
     expect(fake.launches).toEqual([]);
   });
 
@@ -545,7 +545,7 @@ describe("flow with no arguments", () => {
 
     await homeCommand(fake.ctx);
 
-    expect(fake.prompts[0]).toMatchObject({ kind: "pick", options: ["task_1"] });
+    expect(fake.prompts[0]).toMatchObject({ kind: "filterSelect", options: ["task_1"] });
     expect(
       fake.launches[0]?.session.kind === "fresh" && fake.launches[0].session.prompt,
     ).toStartWith("/implement");
@@ -579,6 +579,7 @@ describe("status and archive", () => {
 
     const [output] = fake.logged("message");
     expect(output).toContain("task_1 · Title of task_1");
+    expect(output).toContain("branch: task_1/slug");
     expect(output).toContain("✔ spec");
     expect(output).toContain(`setup: ready (${WORKTREE})`);
     expect(output).toContain("next: impl");

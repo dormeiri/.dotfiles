@@ -42,7 +42,7 @@ type Migration = (state: Record<string, unknown>) => Record<string, unknown>;
 // Keyed by the version each migration upgrades from; add one whenever STATE_VERSION is bumped.
 const MIGRATIONS: Record<number, Migration> = {};
 
-export function migrate(raw: unknown, migrations = MIGRATIONS, target = STATE_VERSION): unknown {
+export function migrate(raw: unknown): unknown {
   if (typeof raw !== "object" || raw === null || !("version" in raw)) {
     throw new StateError("missing version");
   }
@@ -51,11 +51,13 @@ export function migrate(raw: unknown, migrations = MIGRATIONS, target = STATE_VE
   if (typeof version !== "number" || !Number.isInteger(version)) {
     throw new StateError(`invalid version ${JSON.stringify(version)}`);
   }
-  if (version > target) {
-    throw new StateError(`written by a newer flow (v${version}, this flow reads up to v${target})`);
+  if (version > STATE_VERSION) {
+    throw new StateError(
+      `written by a newer flow (v${version}, this flow reads up to v${STATE_VERSION})`,
+    );
   }
-  for (let from = version; from < target; from++) {
-    const step = migrations[from];
+  for (let from = version; from < STATE_VERSION; from++) {
+    const step = MIGRATIONS[from];
     if (!step) throw new StateError(`no migration from v${from}`);
     state = { ...step(state), version: from + 1 };
   }

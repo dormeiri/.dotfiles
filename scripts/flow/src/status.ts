@@ -27,6 +27,7 @@ export function formatStatus(task: TaskState, gate: SetupGate): string {
   });
   return [
     `${task.taskId} · ${task.title}`,
+    ...(task.branch ? [`branch: ${task.branch}`] : []),
     stages.join("  "),
     `setup: ${describeSetup(gate)}`,
     describeNext(task),

@@ -40,21 +40,12 @@ describe("parseTaskState", () => {
 });
 
 describe("migrate", () => {
-  test("chains migrations from an older version up to the target", () => {
-    const migrations = {
-      1: (s: Record<string, unknown>) => ({ ...s, renamed: s.old }),
-      2: (s: Record<string, unknown>) => ({ ...s, added: true }),
-    };
-    expect(migrate({ version: 1, old: "x" }, migrations, 3)).toEqual({
-      version: 3,
-      old: "x",
-      renamed: "x",
-      added: true,
-    });
+  test("passes a current state through", () => {
+    expect(migrate({ version: STATE_VERSION, x: 1 })).toEqual({ version: STATE_VERSION, x: 1 });
   });
 
-  test("fails when a migration step is missing", () => {
-    expect(() => migrate({ version: 1 }, {}, 2)).toThrow(/no migration from v1/);
+  test("fails for an older version it has no migration for", () => {
+    expect(() => migrate({ version: 0 })).toThrow(/no migration from v0/);
   });
 });
 

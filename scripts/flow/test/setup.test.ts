@@ -1,56 +1,46 @@
 import { describe, expect, test } from "bun:test";
-import { runSetup, setupNotification, setupOutcome } from "../src/setup.ts";
-import { fakeContext } from "./fakes.ts";
+import type { SetupStep } from "../src/effects.ts";
+import {
+  monorepoSteps,
+  runSetup,
+  setupNotification,
+  worktreePath,
+  worktreeSteps,
+} from "../src/setup.ts";
+import { type FakeOptions, fakeContext, MAIN_REPO } from "./fakes.ts";
 
-const SUCCESS_LOG = [
-  "Task ID: task_1",
-  "📂 Now in: /wt/port/task_1/slug",
-  "yarn install…",
-  "🎉 Done! Worktree ready at: /wt/port/task_1/slug",
-].join("\n");
+const WORKTREE = "/worktrees/repo/task_1/slug";
 
-const BRANCH_EXISTS_LOG = [
-  "Task ID: task_1",
-  "Branch: task_1/slug",
-  "❌  Branch 'task_1/slug' already exists locally. Choose a different name.",
-].join("\n");
-
-const YARN_FAILED_LOG = [
-  "📂 Now in: /wt/port/task_1/slug",
-  "\u001b[31merror\u001b[39m Command failed with exit code 1.",
-  "info Visit https://yarnpkg.com for documentation.",
-].join("\n");
-
-describe("setupOutcome", () => {
-  test("success records the worktree path", () => {
-    expect(setupOutcome(0, SUCCESS_LOG)).toEqual({
-      status: "ready",
-      worktreePath: "/wt/port/task_1/slug",
-    });
+describe("setup steps", () => {
+  test("the worktree lands under the repo's name and the Port branch", () => {
+    const { config } = fakeContext();
+    expect(worktreePath(config, "task_1/slug")).toBe(WORKTREE);
   });
 
-  test("an existing branch surfaces wt-create's error", () => {
-    expect(setupOutcome(1, BRANCH_EXISTS_LOG)).toEqual({
-      status: "failed",
-      worktreePath: undefined,
-      error: "Branch 'task_1/slug' already exists locally. Choose a different name.",
-    });
+  test("the branch is created off origin/main without tracking it", () => {
+    const { config } = fakeContext();
+    expect(worktreeSteps(config, "task_1/slug", WORKTREE).map((s) => [s.cmd, s.cwd])).toEqual([
+      [["git", "fetch", "origin", "main"], MAIN_REPO],
+      [
+        ["git", "worktree", "add", "--no-track", "-b", "task_1/slug", WORKTREE, "origin/main"],
+        MAIN_REPO,
+      ],
+    ]);
   });
 
-  test("a failure after the worktree was created keeps its path", () => {
-    expect(setupOutcome(1, YARN_FAILED_LOG)).toEqual({
-      status: "failed",
-      worktreePath: "/wt/port/task_1/slug",
-      error: "error Command failed with exit code 1.",
-    });
-  });
-
-  test("a clean exit without a worktree path is a failure", () => {
-    expect(setupOutcome(0, "nothing useful").status).toBe("failed");
-  });
-
-  test("an empty log still explains the failure", () => {
-    expect(setupOutcome(2, "").error).toBe("exited with code 2");
+  test("monorepo setup runs in the worktree, with AWS auth for the middleware pull", () => {
+    const { config } = fakeContext();
+    const steps = monorepoSteps(config, WORKTREE);
+    expect(steps.every((s) => s.cwd === WORKTREE)).toBe(true);
+    expect(steps.map((s) => s.cmd[0])).toEqual([
+      "cp",
+      "yarn",
+      "yarn",
+      "assume",
+      "/scripts/pull-middlewares.sh",
+    ]);
+    expect(steps[0]?.optional).toBe(true);
+    expect(steps.at(-1)?.env?.AWS_PROFILE).toBe("Local/DeveloperAccess");
   });
 });
 
@@ -67,61 +57,118 @@ describe("setupNotification", () => {
 });
 
 describe("runSetup", () => {
-  async function running(log: string, exitCode: number, setStatus?: () => Promise<void>) {
-    const statuses: string[] = [];
+  async function run(options: FakeOptions & { failing?: string[] } = {}) {
+    const ran: SetupStep[] = [];
+    const inProgress: string[] = [];
     const fake = fakeContext({
+      ...options,
       proc: {
-        runWtap: async () => exitCode,
-        setPortTaskStatus:
-          setStatus ??
-          (async (_, status) => {
-            statuses.push(status);
-          }),
+        runStep: async (step) => {
+          ran.push(step);
+          return options.failing?.includes(step.label) ? 1 : 0;
+        },
+        markPortTaskInProgress: async (taskId) => {
+          inProgress.push(taskId);
+        },
+        ...options.proc,
       },
     });
     await fake.seed("task_1", (t) => {
       t.stages.new.done = true;
+      t.branch = undefined;
       t.setup = { status: "running", logPath: "/logs/task_1.log" };
     });
-    fake.texts.set("/logs/task_1.log", log);
-    await runSetup(fake.fx, "task_1", 4242);
-    return { fake, statuses };
+    const outcome = await runSetup(fake.fx, fake.config, "task_1", 4242);
+    return {
+      fake,
+      ran: ran.map((s) => s.label),
+      inProgress,
+      outcome,
+      task: await fake.task("task_1"),
+    };
   }
 
-  test("success marks setup ready, records the worktree, sets In progress and notifies", async () => {
-    const { fake, statuses } = await running(SUCCESS_LOG, 0);
-    const task = await fake.task("task_1");
+  test("success runs every step, records the worktree and branch, sets In progress and notifies", async () => {
+    const { fake, ran, inProgress, task } = await run();
+    expect(ran).toEqual([
+      "Fetch origin/main",
+      "Create the worktree",
+      "Copy the frontend .env",
+      "yarn install",
+      "yarn pkg:build",
+      "assume Local/DeveloperAccess",
+      "Pull middlewares",
+    ]);
     expect(task.setup).toEqual({ status: "ready", logPath: "/logs/task_1.log" });
-    expect(task.worktreePath).toBe("/wt/port/task_1/slug");
-    expect(statuses).toEqual(["In progress"]);
+    expect(task.worktreePath).toBe(WORKTREE);
+    expect(task.branch).toBe("task_1/slug");
+    expect(inProgress).toEqual(["task_1"]);
     expect(fake.notifications).toEqual([
-      { title: "flow · task_1", message: "Worktree ready: /wt/port/task_1/slug" },
+      { title: "flow · task_1", message: `Worktree ready: ${WORKTREE}` },
     ]);
   });
 
-  test("failure before the worktree exists records the error and leaves Port alone", async () => {
-    const { fake, statuses } = await running(BRANCH_EXISTS_LOG, 1);
-    const task = await fake.task("task_1");
+  test("an existing local branch fails before touching git", async () => {
+    const { ran, inProgress, task, fake } = await run({ existingBranches: ["task_1/slug"] });
+    expect(ran).toEqual([]);
     expect(task.setup?.status).toBe("failed");
-    expect(task.setup?.error).toContain("already exists locally");
+    expect(task.setup?.error).toBe("branch 'task_1/slug' already exists locally");
     expect(task.worktreePath).toBe(undefined);
-    expect(statuses).toEqual([]);
+    expect(inProgress).toEqual([]);
     expect(fake.notifications[0]?.message).toContain("already exists locally");
   });
 
-  test("failure after the worktree was created still sets In progress", async () => {
-    const { fake, statuses } = await running(YARN_FAILED_LOG, 1);
-    const task = await fake.task("task_1");
+  test("a task without a branch_name fails", async () => {
+    const { ran, task } = await run({
+      proc: { getPortTask: async () => ({ title: "T", description: "" }) },
+    });
+    expect(ran).toEqual([]);
+    expect(task.setup?.error).toBe("task_1 has no branch_name in Port");
+  });
+
+  test("Port being unreachable fails the setup instead of crashing", async () => {
+    const { task } = await run({
+      proc: {
+        getPortTask: async () => {
+          throw new Error("401");
+        },
+      },
+    });
+    expect(task.setup).toMatchObject({ status: "failed", error: "401" });
+  });
+
+  test("a failed worktree creation stops before setup and leaves Port alone", async () => {
+    const { ran, inProgress, task } = await run({ failing: ["Create the worktree"] });
+    expect(ran).toEqual(["Fetch origin/main", "Create the worktree"]);
+    expect(task.setup?.error).toBe("Create the worktree failed (exit 1)");
+    expect(task.worktreePath).toBe(undefined);
+    expect(inProgress).toEqual([]);
+  });
+
+  test("a failed setup step keeps the worktree and still sets In progress", async () => {
+    const { ran, inProgress, task } = await run({ failing: ["yarn install"] });
+    expect(ran.at(-1)).toBe("yarn install");
     expect(task.setup?.status).toBe("failed");
-    expect(task.worktreePath).toBe("/wt/port/task_1/slug");
-    expect(statuses).toEqual(["In progress"]);
+    expect(task.setup?.error).toBe("yarn install failed (exit 1)");
+    expect(task.worktreePath).toBe(WORKTREE);
+    expect(inProgress).toEqual(["task_1"]);
+  });
+
+  test("a missing frontend .env doesn't fail the setup", async () => {
+    const { ran, task } = await run({ failing: ["Copy the frontend .env"] });
+    expect(ran).toContain("Pull middlewares");
+    expect(task.setup?.status).toBe("ready");
   });
 
   test("a Port failure doesn't stop the setup from being recorded", async () => {
-    const { fake } = await running(SUCCESS_LOG, 0, async () => {
-      throw new Error("401");
+    const { fake, task } = await run({
+      proc: {
+        markPortTaskInProgress: async () => {
+          throw new Error("401");
+        },
+      },
     });
-    expect((await fake.task("task_1")).setup?.status).toBe("ready");
+    expect(task.setup?.status).toBe("ready");
     expect(fake.logged("warn")[0]).toContain("401");
     expect(fake.notifications).toHaveLength(1);
   });

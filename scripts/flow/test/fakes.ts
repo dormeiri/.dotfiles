@@ -2,8 +2,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Config } from "../src/config.ts";
+import type { Context } from "../src/context.ts";
 import type { ClaudeLaunch, Effects, ProcessRunner } from "../src/effects.ts";
-import type { Context } from "../src/guide.ts";
 import { newTaskState, type TaskState } from "../src/state.ts";
 import { fileStore } from "../src/store.ts";
 import { artifactPaths } from "../src/task.ts";
@@ -11,7 +11,7 @@ import { artifactPaths } from "../src/task.ts";
 type Answer = boolean | string | undefined;
 
 export interface PromptRecord {
-  kind: "confirm" | "select" | "pick";
+  kind: "confirm" | "select" | "filterSelect";
   message: string;
   options: string[];
 }
@@ -21,6 +21,7 @@ export interface FakeOptions {
   proc?: Partial<ProcessRunner>;
   files?: string[];
   branches?: Record<string, string>;
+  existingBranches?: string[];
   cwd?: string;
   onSession?: (launch: ClaudeLaunch) => void | Promise<void>;
   onSleep?: () => void | Promise<void>;
@@ -31,8 +32,9 @@ export const MAIN_REPO = "/repo";
 export function fakeContext(options: FakeOptions = {}) {
   const config: Config = {
     mainRepo: MAIN_REPO,
-    wtapPath: "/portfile/wtap.sh",
-    mtPath: "/portfile/mt.sh",
+    worktreesDir: "/worktrees",
+    taskPickerScript: "/portfile/mt.sh",
+    pullMiddlewaresScript: "/scripts/pull-middlewares.sh",
     stateDir: mkdtempSync(join(tmpdir(), "flow-test-")),
   };
   const answers = [...(options.answers ?? [])];
@@ -68,9 +70,9 @@ export function fakeContext(options: FakeOptions = {}) {
       description: `Description of ${taskId}`,
       branch: `${taskId}/slug`,
     }),
-    setPortTaskStatus: async () => {},
+    markPortTaskInProgress: async () => {},
     assume: async () => true,
-    runWtap: async () => 0,
+    runStep: async () => 0,
     prUrl: async () => undefined,
     openUrl: async () => {},
     async editText(initial) {
@@ -91,8 +93,8 @@ export function fakeContext(options: FakeOptions = {}) {
       confirm: async (message) => answer({ kind: "confirm", message, options: [] }) === true,
       select: async (message, choices) =>
         answer({ kind: "select", message, options: choices.map((c) => c.value) }) as never,
-      pick: async (message, choices) =>
-        answer({ kind: "pick", message, options: choices.map((c) => c.value) }) as never,
+      filterSelect: async (message, choices) =>
+        answer({ kind: "filterSelect", message, options: choices.map((c) => c.value) }) as never,
     },
     async notify(title, message) {
       notifications.push({ title, message });
@@ -109,6 +111,7 @@ export function fakeContext(options: FakeOptions = {}) {
     },
     git: {
       currentBranch: async (cwd) => options.branches?.[cwd],
+      branchExists: async (_, branch) => options.existingBranches?.includes(branch) ?? false,
       mergeBase: async () => "abc123",
     },
     log: {

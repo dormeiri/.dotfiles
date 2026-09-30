@@ -1,11 +1,13 @@
+import { type Context, fetchPortTask, loadTask } from "./context.ts";
 import type { Choice } from "./effects.ts";
-import { type Context, chooseNext, fetchPortTask, loadTask, runFrom } from "./guide.ts";
+import { chooseNext, runFrom } from "./guide.ts";
 import { headlessResultText, parseTaskIdMarker } from "./marker.ts";
 import { resolveTask } from "./resolve.ts";
 import { setupGate } from "./stage-machine.ts";
 import { createTaskPrompt } from "./stage-prompts.ts";
 import { newTaskState, type SessionStage, type TaskState } from "./state.ts";
 import { describeNext, formatStatus } from "./status.ts";
+import { notTracked } from "./store.ts";
 import { artifactPaths, taskUrl } from "./task.ts";
 import { editorResult, intakeTemplate } from "./templates.ts";
 
@@ -34,12 +36,12 @@ async function resolveTaskId(
     case "found":
       return resolution.taskId;
     case "unknown":
-      throw new Error(`${resolution.taskId} isn't tracked by flow.`);
+      throw notTracked(resolution.taskId);
     case "none":
       ctx.fx.log.info(NO_TASKS);
       return undefined;
     case "pick":
-      return ctx.fx.prompts.pick("Which task?", resolution.candidates.map(taskChoice));
+      return ctx.fx.prompts.filterSelect("Which task?", resolution.candidates.map(taskChoice));
   }
 }
 
@@ -111,7 +113,7 @@ export async function stageCommand(
 export async function homeCommand(ctx: Context): Promise<void> {
   const tasks = await inFlight(ctx);
   if (tasks.length === 0) return;
-  const taskId = await ctx.fx.prompts.pick("Pick up a task", tasks.map(taskChoice));
+  const taskId = await ctx.fx.prompts.filterSelect("Pick up a task", tasks.map(taskChoice));
   if (!taskId) return;
   const next = await chooseNext(ctx, taskId, { confirmSingle: false });
   if (next) await runFrom(ctx, taskId, next);

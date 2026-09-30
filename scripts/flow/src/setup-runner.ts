@@ -3,7 +3,7 @@
 import { loadConfig } from "./config.ts";
 import { errorMessage } from "./errors.ts";
 import { realEffects } from "./real-effects.ts";
-import { runSetup } from "./setup.ts";
+import { notificationTitle, runSetup } from "./setup.ts";
 
 const taskId = process.argv[2];
 if (!taskId) {
@@ -11,11 +11,12 @@ if (!taskId) {
   process.exit(1);
 }
 
-const fx = realEffects(loadConfig());
+const config = loadConfig();
+const fx = realEffects(config);
 try {
-  await runSetup(fx, taskId, process.pid);
+  await runSetup(fx, config, taskId, process.pid);
 } catch (error) {
   console.error(error);
-  await fx.notify(`flow · ${taskId}`, `Setup runner crashed: ${errorMessage(error)}`);
+  await fx.notify(notificationTitle(taskId), `Setup runner crashed: ${errorMessage(error)}`);
   process.exit(1);
 }

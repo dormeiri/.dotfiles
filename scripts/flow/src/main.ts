@@ -10,8 +10,8 @@ import {
   statusCommand,
 } from "./commands.ts";
 import { loadConfig } from "./config.ts";
+import type { Context } from "./context.ts";
 import { errorMessage } from "./errors.ts";
-import type { Context } from "./guide.ts";
 import { realEffects } from "./real-effects.ts";
 import type { SessionStage } from "./state.ts";
 

@@ -3,6 +3,17 @@ import { join } from "node:path";
 import { errorMessage } from "./errors.ts";
 import { parseTaskState, StateError, type TaskState, taskStateSchema } from "./state.ts";
 
+export function notTracked(taskId: string): StateError {
+  return new StateError(`${taskId} isn't tracked by flow`);
+}
+
+export function pathExists(path: string): Promise<boolean> {
+  return access(path).then(
+    () => true,
+    () => false,
+  );
+}
+
 export interface StateStore {
   list(): Promise<TaskState[]>;
   get(taskId: string): Promise<TaskState | undefined>;
@@ -60,11 +71,7 @@ export function fileStore(stateDir: string): StateStore {
 
   async function get(taskId: string): Promise<TaskState | undefined> {
     const file = taskFile(taskId);
-    const exists = await access(file).then(
-      () => true,
-      () => false,
-    );
-    return exists ? read(file) : undefined;
+    return (await pathExists(file)) ? read(file) : undefined;
   }
 
   return {
@@ -87,7 +94,7 @@ export function fileStore(stateDir: string): StateStore {
       await mkdir(tasksDir, { recursive: true });
       return withLock(taskFile(taskId), async () => {
         const task = await get(taskId);
-        if (!task) throw new StateError(`${taskId} isn't tracked by flow`);
+        if (!task) throw notTracked(taskId);
         change(task);
         await write(task);
         return task;

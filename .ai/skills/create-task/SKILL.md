@@ -10,7 +10,7 @@ Don't ask questions, just do. Write details after you finish so I can decide wha
 
 ## Step 1: Parallel lookups
 
-Run ALL simultaneously before asking anything:
+Run ALL simultaneously:
 
 1. `list_entities` (task) — search duplicates using title/description keywords
 2. `list_entities` (team_iteration) — filter `iteration_status != Completed`; always include Backlog iterations (title contains "Backlog") for the user's team
@@ -75,9 +75,9 @@ The `TASK_ID:` line must be the last line, plain text with no formatting, holdin
 
 ## Key rules
 
-- Always include the Backlog iteration in options — label it clearly as "Backlog"
+- Fall back to the team's Backlog iteration when no iteration is given
 - If user provides iteration/deliverable/roadmap item upfront, use it
-- Filter iterations by the user's team — don't ask for team unless nothing can be inferred
+- Filter iterations by the user's team, inferred from `describe_user_details`
 - Default priority: `High`; default expected_size: `M`
 - Always report duplicate check result and other related entities, even if "None found"
 
@@ -91,7 +91,7 @@ Use Port MCP, if not available, try using /port-cli. If neither is available, re
 | `list_entities` (team_iteration)                     | Upcoming iterations + Backlog                |
 | `list_entities` (deliverable, roadmap_item, project) | Context lookups                              |
 | `describe_user_details`                              | Resolve user's team                          |
-| `upsert_entity` (deliverable)                        | Create new deliverable                       |
+| `upsert_entity` (deliverable)                        | Update existing deliverable only             |
 | `trigger_run` (`create_a_task_for_the_iteration`)    | **Create task**                              |
 | `list_self_service_triggers`                         | List available action and workflows triggers |
 | `upsert_entity` (task)                               | Update existing task only                    |

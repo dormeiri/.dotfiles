@@ -1,4 +1,4 @@
-import type { SessionStage, Stage, TaskState } from "./state.ts";
+import type { Stage, TaskState } from "./state.ts";
 
 const REQUIRED: Stage[] = ["new", "spec", "impl", "review"];
 
@@ -12,10 +12,6 @@ export const STAGE_LABELS: Record<Stage, string> = {
 
 export function nextStage(task: TaskState): Stage | undefined {
   return REQUIRED.find((stage) => !task.stages[stage].done);
-}
-
-export function runsInWorktree(stage: SessionStage): boolean {
-  return stage === "impl" || stage === "review";
 }
 
 export function nextChoices(task: TaskState): Stage[] {
@@ -55,10 +51,4 @@ export function setupGate(task: TaskState, isAlive: (pid: number) => boolean): S
     case "failed":
       return { kind: "failed", logPath, worktreePath, reason: setup.error };
   }
-}
-
-export function mainRepoWarning(branch: string | undefined): string | undefined {
-  if (branch === "main") return undefined;
-  const current = branch ? `on '${branch}'` : "on an unknown branch";
-  return `The main repo is ${current}, not main, so this session will see that branch's code.`;
 }

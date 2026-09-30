@@ -19,6 +19,14 @@ export interface PortTask {
   branch?: string;
 }
 
+export interface SetupStep {
+  label: string;
+  cmd: string[];
+  cwd: string;
+  env?: Record<string, string>;
+  optional?: boolean;
+}
+
 export interface ProcessRunner {
   claudeHeadless(opts: {
     cwd: string;
@@ -28,9 +36,9 @@ export interface ProcessRunner {
   claudeInteractive(launch: ClaudeLaunch): Promise<void>;
   pickPortTask(): Promise<string | undefined>;
   getPortTask(taskId: string): Promise<PortTask>;
-  setPortTaskStatus(taskId: string, status: string): Promise<void>;
+  markPortTaskInProgress(taskId: string): Promise<void>;
   assume(profile: string): Promise<boolean>;
-  runWtap(taskId: string): Promise<number>;
+  runStep(step: SetupStep): Promise<number>;
   prUrl(cwd: string): Promise<string | undefined>;
   openUrl(url: string): Promise<void>;
   editText(initial: string): Promise<string>;
@@ -48,7 +56,7 @@ export interface Choice<T extends string> {
 export interface Prompts {
   confirm(message: string): Promise<boolean>;
   select<T extends string>(message: string, choices: Choice<T>[]): Promise<T | undefined>;
-  pick<T extends string>(message: string, choices: Choice<T>[]): Promise<T | undefined>;
+  filterSelect<T extends string>(message: string, choices: Choice<T>[]): Promise<T | undefined>;
 }
 
 export interface Logger {
@@ -68,6 +76,7 @@ export interface FsProbe {
 
 export interface GitProbe {
   currentBranch(cwd: string): Promise<string | undefined>;
+  branchExists(repo: string, branch: string): Promise<boolean>;
   mergeBase(cwd: string, ref: string): Promise<string | undefined>;
 }
 

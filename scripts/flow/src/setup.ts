@@ -1,4 +1,6 @@
-import type { Effects } from "./effects.ts";
+import { basename, join } from "node:path";
+import type { Config } from "./config.ts";
+import type { Effects, SetupStep } from "./effects.ts";
 import { errorMessage } from "./errors.ts";
 
 export interface SetupOutcome {
@@ -7,62 +9,110 @@ export interface SetupOutcome {
   error?: string;
 }
 
-// Printed by wta.sh: "Now in" right after the worktree is created, "Worktree ready at" once setup succeeded.
-const READY = /Worktree ready at: (.+)$/gm;
-const CREATED = /Now in: (.+)$/gm;
+export const AWS_PROFILE = "Local/DeveloperAccess";
 
-function lastMatch(text: string, pattern: RegExp): string | undefined {
-  return [...text.matchAll(pattern)].at(-1)?.[1]?.trim();
+export function worktreePath(config: Config, branch: string): string {
+  return join(config.worktreesDir, basename(config.mainRepo), branch);
 }
 
-function failureReason(log: string, exitCode: number): string {
-  const lines = log
-    .split("\n")
-    .map((line) =>
-      line
-        .replaceAll("\u001b", "")
-        .replace(/\[[0-9;]*m/g, "")
-        .trim(),
-    )
-    .filter(Boolean);
-  const explicit = lines.findLast((line) => line.includes("❌") || /^error\b/i.test(line));
-  return (explicit ?? lines.at(-1) ?? `exited with code ${exitCode}`).replace("❌", "").trim();
+export function worktreeSteps(config: Config, branch: string, dir: string): SetupStep[] {
+  return [
+    { label: "Fetch origin/main", cmd: ["git", "fetch", "origin", "main"], cwd: config.mainRepo },
+    {
+      label: "Create the worktree",
+      // --no-track: branching off origin/main would otherwise make `git push` target main.
+      cmd: ["git", "worktree", "add", "--no-track", "-b", branch, dir, "origin/main"],
+      cwd: config.mainRepo,
+    },
+  ];
 }
 
-export function setupOutcome(exitCode: number, log: string): SetupOutcome {
-  const worktreePath = lastMatch(log, READY) ?? lastMatch(log, CREATED);
-  if (exitCode !== 0) {
-    return { status: "failed", worktreePath, error: failureReason(log, exitCode) };
-  }
-  if (!worktreePath) {
-    return { status: "failed", error: "setup finished but the log has no worktree path" };
-  }
-  return { status: "ready", worktreePath };
+export function monorepoSteps(config: Config, dir: string): SetupStep[] {
+  const awsEnv = { AWS_PROFILE, GRANTED_ALIAS_CONFIGURED: "true" };
+  return [
+    {
+      label: "Copy the frontend .env",
+      cmd: ["cp", join(config.mainRepo, "apps/frontend/.env"), join(dir, "apps/frontend/")],
+      cwd: dir,
+      optional: true,
+    },
+    { label: "yarn install", cmd: ["yarn", "install"], cwd: dir },
+    { label: "yarn pkg:build", cmd: ["yarn", "pkg:build"], cwd: dir },
+    { label: `assume ${AWS_PROFILE}`, cmd: ["assume", AWS_PROFILE], cwd: dir, env: awsEnv },
+    { label: "Pull middlewares", cmd: [config.pullMiddlewaresScript], cwd: dir, env: awsEnv },
+  ];
+}
+
+export function notificationTitle(taskId: string): string {
+  return `flow · ${taskId}`;
 }
 
 export function setupNotification(
   taskId: string,
   outcome: SetupOutcome,
 ): { title: string; message: string } {
-  const title = `flow · ${taskId}`;
+  const title = notificationTitle(taskId);
   return outcome.status === "ready"
     ? { title, message: `Worktree ready: ${outcome.worktreePath}` }
     : { title, message: `Setup failed: ${outcome.error}` };
 }
 
-export async function runSetup(fx: Effects, taskId: string, pid: number): Promise<SetupOutcome> {
+async function runSteps(fx: Effects, steps: SetupStep[]): Promise<string | undefined> {
+  for (const step of steps) {
+    fx.log.info(`▶ ${step.label}`);
+    const exitCode = await fx.proc.runStep(step);
+    if (exitCode === 0) continue;
+    if (step.optional) {
+      fx.log.warn(`${step.label} failed (exit ${exitCode}), continuing`);
+      continue;
+    }
+    return `${step.label} failed (exit ${exitCode})`;
+  }
+  return undefined;
+}
+
+async function createAndSetUp(fx: Effects, config: Config, taskId: string): Promise<SetupOutcome> {
+  const branch = (await fx.proc.getPortTask(taskId)).branch;
+  if (!branch) return { status: "failed", error: `${taskId} has no branch_name in Port` };
+  await fx.store.update(taskId, (t) => {
+    t.branch = branch;
+  });
+  if (await fx.git.branchExists(config.mainRepo, branch)) {
+    return { status: "failed", error: `branch '${branch}' already exists locally` };
+  }
+
+  const dir = worktreePath(config, branch);
+  const worktreeError = await runSteps(fx, worktreeSteps(config, branch, dir));
+  if (worktreeError) return { status: "failed", error: worktreeError };
+  const setupError = await runSteps(fx, monorepoSteps(config, dir));
+  return setupError
+    ? { status: "failed", worktreePath: dir, error: setupError }
+    : { status: "ready", worktreePath: dir };
+}
+
+export async function runSetup(
+  fx: Effects,
+  config: Config,
+  taskId: string,
+  pid: number,
+): Promise<SetupOutcome> {
   const task = await fx.store.update(taskId, (t) => {
     if (t.setup) t.setup.pid = pid;
   });
   if (!task.setup) throw new Error(`${taskId} has no worktree setup to run`);
   const { logPath } = task.setup;
 
-  const exitCode = await fx.proc.runWtap(taskId);
-  const outcome = setupOutcome(exitCode, await fx.fs.readText(logPath).catch(() => ""));
+  let outcome: SetupOutcome;
+  try {
+    outcome = await createAndSetUp(fx, config, taskId);
+  } catch (error) {
+    outcome = { status: "failed", error: errorMessage(error) };
+  }
+  if (outcome.error) fx.log.error(outcome.error);
 
   if (outcome.worktreePath) {
     try {
-      await fx.proc.setPortTaskStatus(taskId, "In progress");
+      await fx.proc.markPortTaskInProgress(taskId);
     } catch (error) {
       fx.log.warn(`Couldn't set ${taskId} to In progress: ${errorMessage(error)}`);
     }

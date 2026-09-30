@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync } from "node:fs";
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,7 +17,7 @@ import type {
   ProcResult,
   Prompts,
 } from "./effects.ts";
-import { fileStore } from "./store.ts";
+import { fileStore, pathExists } from "./store.ts";
 
 const RUNNER_PATH = fileURLToPath(new URL("./setup-runner.ts", import.meta.url));
 
@@ -91,7 +91,7 @@ function processRunner(config: Config): ProcessRunner {
     },
 
     async pickPortTask() {
-      const proc = Bun.spawn([config.mtPath, "--only-branch-name"], {
+      const proc = Bun.spawn([config.taskPickerScript, "--only-branch-name"], {
         stdio: ["inherit", "pipe", "inherit"],
       });
       const [stdout, exitCode] = await withSigintIgnored(() =>
@@ -112,7 +112,7 @@ function processRunner(config: Config): ProcessRunner {
       };
     },
 
-    async setPortTaskStatus(taskId, status) {
+    async markPortTaskInProgress(taskId) {
       const result = await capture([
         "port",
         "api",
@@ -121,7 +121,7 @@ function processRunner(config: Config): ProcessRunner {
         "PATCH",
         `/blueprints/task/entities/${taskId}`,
         "--data",
-        JSON.stringify({ properties: { status } }),
+        JSON.stringify({ properties: { status: "In progress" } }),
       ]);
       if (result.exitCode !== 0) throw failure(result);
     },
@@ -135,9 +135,19 @@ function processRunner(config: Config): ProcessRunner {
       }
     },
 
-    runWtap: (taskId) =>
-      Bun.spawn([config.wtapPath, "--task", taskId], { stdio: ["ignore", "inherit", "inherit"] })
-        .exited,
+    async runStep({ cmd, cwd, env }) {
+      try {
+        const proc = Bun.spawn(cmd, {
+          cwd,
+          env: { ...process.env, ...env },
+          stdio: ["ignore", "inherit", "inherit"],
+        });
+        return await proc.exited;
+      } catch (error) {
+        console.error(error);
+        return 127;
+      }
+    },
 
     async prUrl(cwd) {
       const result = await capture(["gh", "pr", "view", "--json", "url", "--jq", ".url"], cwd);
@@ -201,7 +211,7 @@ const clackPrompts: Prompts = {
     const answer = await select<string>({ message, options: choices });
     return isCancel(answer) ? undefined : (answer as T);
   },
-  async pick<T extends string>(message: string, choices: Choice<T>[]) {
+  async filterSelect<T extends string>(message: string, choices: Choice<T>[]) {
     const answer = await autocomplete<string>({
       message,
       options: choices,
@@ -225,11 +235,7 @@ const clackLogger: Logger = {
 };
 
 const nodeFs: FsProbe = {
-  exists: (path) =>
-    access(path).then(
-      () => true,
-      () => false,
-    ),
+  exists: pathExists,
   readText: (path) => readFile(path, "utf8"),
   async ensureDir(path) {
     await mkdir(path, { recursive: true });
@@ -240,6 +246,12 @@ const gitProbe: GitProbe = {
   async currentBranch(cwd) {
     const result = await capture(["git", "-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"]);
     return result.exitCode === 0 ? result.stdout.trim() : undefined;
+  },
+  async branchExists(repo, branch) {
+    const ref = `refs/heads/${branch}`;
+    return (
+      (await capture(["git", "-C", repo, "show-ref", "--quiet", "--verify", ref])).exitCode === 0
+    );
   },
   async mergeBase(cwd, ref) {
     const result = await capture(["git", "-C", cwd, "merge-base", "HEAD", ref]);

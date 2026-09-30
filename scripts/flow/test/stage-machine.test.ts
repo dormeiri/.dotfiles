@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { mainRepoWarning, nextChoices, nextStage, setupGate } from "../src/stage-machine.ts";
+import { mainRepoWarning } from "../src/session-stages.ts";
+import { nextChoices, nextStage, setupGate } from "../src/stage-machine.ts";
 import { newTaskState, type TaskState } from "../src/state.ts";
 
 function task(change: (t: TaskState) => void = () => {}): TaskState {
