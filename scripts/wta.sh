@@ -15,6 +15,7 @@ USE_EASY=false
 SETUP_SCRIPT=""
 AGENT="claude"
 PROMPT_CONTENT=""
+LOCAL_TEMP_DIR="temp" # where wt-*-agent.sh keep their prompt and session ID
 
 usage() {
     echo "Usage: wta <branch-name> [options]"
@@ -28,6 +29,7 @@ usage() {
     echo "  --hard            Use claude-opus-5 (mutually exclusive with --easy)"
     echo "  --easy            Use composer-2 (mutually exclusive with --hard)"
     echo "  --setup <script>  Custom setup script to run after creating worktree"
+    echo "  --prompt-content <text>  Prefill the prompt (with --ai), else save it to $LOCAL_TEMP_DIR/.prompt.txt"
     echo "  --dry-run         Print actions without executing"
     echo "  --help            Show this help message"
     echo ""
@@ -88,6 +90,13 @@ if $USE_AI; then
             PROMPTFILE=""
         fi
     fi
+elif [[ -n "$PROMPT_CONTENT" ]]; then
+    SAVED_PROMPT="$LOCAL_TEMP_DIR/.prompt.txt"
+    if ! $DRY_RUN; then
+        mkdir -p "$LOCAL_TEMP_DIR"
+        echo "$PROMPT_CONTENT" > "$SAVED_PROMPT"
+    fi
+    echo "📝 No --ai, so no agent will run. Prompt saved to $WT_DIR/$SAVED_PROMPT"
 fi
 
 # ─── Setup ───────────────────────────────────────────────────────────────────
@@ -117,7 +126,7 @@ if [[ -n "$PROMPTFILE" ]]; then
 fi
 
 if $USE_AI; then
-    echo "Session ID: $(cat .session_id 2>/dev/null || echo "N/A")"
+    echo "Session ID: $(cat "$LOCAL_TEMP_DIR/.session_id" 2>/dev/null || echo "N/A")"
 fi
 
 echo ""

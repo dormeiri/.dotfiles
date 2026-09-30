@@ -48,7 +48,10 @@ brew install \
     opencode \
     parallel \
     tree \
-    rtk
+    rtk \
+    oven-sh/bun/bun
+
+bun install --cwd ~/.dotfiles/scripts/flow
 
 git clone https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab
 
