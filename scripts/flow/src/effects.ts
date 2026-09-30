@@ -34,7 +34,7 @@ export interface ProcessRunner {
     allowedTools: string[];
   }): Promise<ProcResult>;
   claudeInteractive(launch: ClaudeLaunch): Promise<void>;
-  pickPortTask(): Promise<string | undefined>;
+  searchPortTasks(query: unknown): Promise<unknown>;
   getPortTask(taskId: string): Promise<PortTask>;
   markPortTaskInProgress(taskId: string): Promise<void>;
   assume(profile: string): Promise<boolean>;

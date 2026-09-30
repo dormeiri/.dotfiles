@@ -1,7 +1,15 @@
 import { type Context, fetchPortTask, loadTask } from "./context.ts";
 import type { Choice } from "./effects.ts";
+import { errorMessage } from "./errors.ts";
 import { chooseNext, runFrom } from "./guide.ts";
 import { headlessResultText, parseTaskIdMarker } from "./marker.ts";
+import {
+  MY_TASKS_QUERY,
+  type MyTask,
+  myTaskChoice,
+  parseMyTasks,
+  sortMyTasks,
+} from "./my-tasks.ts";
 import { resolveTask } from "./resolve.ts";
 import { setupGate } from "./stage-machine.ts";
 import { createTaskPrompt } from "./stage-prompts.ts";
@@ -45,6 +53,22 @@ async function resolveTaskId(
   }
 }
 
+async function pickMyTask(ctx: Context): Promise<string | undefined> {
+  const { fx } = ctx;
+  let tasks: MyTask[];
+  try {
+    tasks = sortMyTasks(parseMyTasks(await fx.proc.searchPortTasks(MY_TASKS_QUERY)));
+  } catch (error) {
+    fx.log.error(`Couldn't list your tasks from Port (${errorMessage(error)}).`);
+    return undefined;
+  }
+  if (tasks.length === 0) {
+    fx.log.warn("You have no open tasks in the current or next iteration.");
+    return undefined;
+  }
+  return fx.prompts.filterSelect("Which task did /create-task create?", tasks.map(myTaskChoice));
+}
+
 async function createTask(ctx: Context, input: string | undefined): Promise<string | undefined> {
   const { fx, config } = ctx;
   let context = input?.trim();
@@ -68,8 +92,7 @@ async function createTask(ctx: Context, input: string | undefined): Promise<stri
   spinner.stop(taskId ? `Created ${taskId}` : "/create-task didn't report a TASK_ID");
   if (!taskId) {
     fx.log.message(output.trim() || result.stderr.trim() || "(no output)");
-    fx.log.info("Pick the task from your task list instead.");
-    taskId = await fx.proc.pickPortTask();
+    taskId = await pickMyTask(ctx);
     if (!taskId) {
       fx.log.warn("No task picked.");
       return undefined;

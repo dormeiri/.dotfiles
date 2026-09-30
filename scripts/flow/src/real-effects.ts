@@ -63,7 +63,7 @@ const portEntitySchema = z.object({
     .nullish(),
 });
 
-function processRunner(config: Config): ProcessRunner {
+function processRunner(): ProcessRunner {
   return {
     claudeHeadless: ({ cwd, prompt, allowedTools }) =>
       capture(
@@ -90,15 +90,19 @@ function processRunner(config: Config): ProcessRunner {
       await foreground(args, { cwd });
     },
 
-    async pickPortTask() {
-      const proc = Bun.spawn([config.taskPickerScript, "--only-branch-name"], {
-        stdio: ["inherit", "pipe", "inherit"],
-      });
-      const [stdout, exitCode] = await withSigintIgnored(() =>
-        Promise.all([new Response(proc.stdout).text(), proc.exited]),
-      );
-      // mt.sh prints "<branch>\t<task id>".
-      return exitCode === 0 ? stdout.trim().split("\t")[1] || undefined : undefined;
+    async searchPortTasks(query) {
+      const result = await capture([
+        "port",
+        "api",
+        "call",
+        "--method",
+        "POST",
+        "/blueprints/task/entities/search",
+        "--data",
+        JSON.stringify(query),
+      ]);
+      if (result.exitCode !== 0) throw failure(result);
+      return JSON.parse(result.stdout);
     },
 
     async getPortTask(taskId) {
@@ -275,7 +279,7 @@ async function notify(title: string, message: string): Promise<void> {
 
 export function realEffects(config: Config): Effects {
   return {
-    proc: processRunner(config),
+    proc: processRunner(),
     prompts: clackPrompts,
     notify,
     store: fileStore(config.stateDir),

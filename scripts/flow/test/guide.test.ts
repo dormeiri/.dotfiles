@@ -88,21 +88,35 @@ describe("flow new", () => {
 
   test("without a marker, shows Claude's output and falls back to the task picker", async () => {
     const fake = fakeContext({
-      answers: [false],
+      answers: ["task_picked", false],
       proc: {
         claudeHeadless: async () => ({
           exitCode: 0,
           stdout: JSON.stringify({ result: "Created it, see link" }),
           stderr: "",
         }),
-        pickPortTask: async () => "task_picked",
+        searchPortTasks: async () => ({
+          entities: [{ identifier: "task_picked", title: "Picked" }],
+        }),
       },
     });
 
     await newCommand(fake.ctx, "idea");
 
     expect(fake.logged("message")).toContain("Created it, see link");
+    expect(fake.prompts[0]).toMatchObject({ kind: "filterSelect", options: ["task_picked"] });
     expect((await fake.task("task_picked")).taskId).toBe("task_picked");
+  });
+
+  test("without a marker and without open tasks, nothing is tracked", async () => {
+    const fake = fakeContext({
+      proc: { claudeHeadless: async () => ({ exitCode: 1, stdout: "", stderr: "boom" }) },
+    });
+
+    await newCommand(fake.ctx, "idea");
+
+    expect(fake.logged("message")).toContain("boom");
+    expect(await fake.fx.store.list()).toEqual([]);
   });
 
   test("a rejected task stays tracked without a worktree and resumes at verification", async () => {

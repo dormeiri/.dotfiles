@@ -33,7 +33,6 @@ export function fakeContext(options: FakeOptions = {}) {
   const config: Config = {
     mainRepo: MAIN_REPO,
     worktreesDir: "/worktrees",
-    taskPickerScript: "/portfile/mt.sh",
     pullMiddlewaresScript: "/scripts/pull-middlewares.sh",
     stateDir: mkdtempSync(join(tmpdir(), "flow-test-")),
   };
@@ -64,7 +63,7 @@ export function fakeContext(options: FakeOptions = {}) {
       launches.push(launch);
       await options.onSession?.(launch);
     },
-    pickPortTask: async () => undefined,
+    searchPortTasks: async () => ({ entities: [] }),
     getPortTask: async (taskId) => ({
       title: `Title of ${taskId}`,
       description: `Description of ${taskId}`,
