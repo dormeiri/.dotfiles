@@ -94,6 +94,7 @@ fpr() {
 }
 
 alias wta='$HOME/.dotfiles/scripts/wta.sh'
+alias flow='$HOME/.dotfiles/scripts/flow/src/main.ts'
 
 wtf() {
     local BIND_ENTER='enter:become(echo {} | cut -d" " -f1 | xargs echo)'

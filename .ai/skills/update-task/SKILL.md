@@ -28,7 +28,7 @@ If the task status is done/deferred/cancelled/continued, ask the user if they wa
 
 ## Task description
 
-Understand the task from the conversation and update the task description with a summary of the conversation. Check also `specs/` folder. Use the following format:
+Understand the task from the conversation and update the task description with a summary of the conversation. Check also the `.scratch/` folder for a spec. Use the following format:
 
 ```
 ## Problem Statement
