@@ -3,14 +3,16 @@ import {
   createTaskPrompt,
   grillPrompt,
   implementPrompt,
+  linkSpecCommand,
   researchPrompt,
   reviewPrompt,
 } from "../src/stage-prompts.ts";
 import {
+  editedText,
   editorResult,
   intakeTemplate,
   researchTemplate,
-  solutionTemplate,
+  specTemplate,
 } from "../src/templates.ts";
 
 const TASK_URL = "https://app.getport.io/taskEntity?identifier=task_1";
@@ -29,11 +31,17 @@ describe("stage prompts", () => {
     expect(prompt).toContain(RESEARCH);
   });
 
-  test("grill tells /to-spec where to write and which task to link", () => {
-    const prompt = grillPrompt({ taskId: "task_1", solution: "Do X", specPath: SPEC });
+  test("grill tells /to-spec where to write and the exact command to link it to the task", () => {
+    const prompt = grillPrompt({ taskId: "task_1", task: "Do X", specPath: SPEC });
     expect(prompt.startsWith("/grill-me Do X")).toBe(true);
     expect(prompt).toContain(`write the spec to ${SPEC}`);
-    expect(prompt).toContain("link it to task task_1");
+    expect(prompt).toContain(linkSpecCommand("task_1", SPEC));
+  });
+
+  test("the link command patches only the task's spec property from the file", () => {
+    expect(linkSpecCommand("task_1", SPEC)).toBe(
+      `port api call --method PATCH /blueprints/task/entities/task_1 --data "$(jq -n --rawfile spec '${SPEC}' '{properties: {spec: $spec}}')"`,
+    );
   });
 
   test("implement references the spec and ends with a draft PR", () => {
@@ -73,10 +81,18 @@ describe("editor templates", () => {
     expect(template).toContain("## Question");
   });
 
-  test("solution template links research only when present", () => {
-    expect(solutionTemplate(task, RESEARCH)).toContain(`Research: ${RESEARCH}`);
-    expect(solutionTemplate(task, undefined)).not.toContain("Research:");
-    expect(solutionTemplate(task, undefined)).toContain("## Proposed solution");
+  test("spec template is the task description, linking research only when present", () => {
+    expect(specTemplate(task, RESEARCH)).toContain(`Research: ${RESEARCH}`);
+    expect(specTemplate(task, undefined)).not.toContain("Research:");
+    expect(specTemplate(task, undefined)).toContain("It breaks.");
+    expect(specTemplate(task, undefined)).not.toContain("Proposed solution");
+  });
+
+  test("an unedited spec template is used as-is; only an emptied one cancels", () => {
+    const template = specTemplate(task, undefined);
+    expect(editedText(template)).toContain("It breaks.");
+    expect(editedText(template)).not.toContain("<!--");
+    expect(editedText("  <!-- only a comment -->\n")).toBe(undefined);
   });
 
   test("an unedited template counts as cancelled", () => {

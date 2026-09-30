@@ -31,7 +31,7 @@ program
 
 const stages: [SessionStage, string][] = [
   ["research", "Research the task in the main repo"],
-  ["spec", "Write a proposed solution and grill it into a spec"],
+  ["spec", "Grill the task's approved description into a spec"],
   ["impl", "Implement the spec in the worktree and open a draft PR"],
   ["review", "Review the branch in a fresh session"],
 ];

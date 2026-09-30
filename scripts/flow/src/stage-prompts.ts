@@ -21,12 +21,21 @@ export function researchPrompt(input: {
   ].join("\n");
 }
 
-export function grillPrompt(input: { taskId: string; solution: string; specPath: string }): string {
+export function linkSpecCommand(taskId: string, specPath: string): string {
+  return `port api call --method PATCH /blueprints/task/entities/${taskId} --data "$(jq -n --rawfile spec '${specPath}' '{properties: {spec: $spec}}')"`;
+}
+
+export function grillPrompt(input: { taskId: string; task: string; specPath: string }): string {
   return [
-    `/grill-me ${input.solution}`,
+    `/grill-me ${input.task}`,
     "",
     taskLine(input.taskId),
-    `When I run /to-spec, write the spec to ${input.specPath} and link it to task ${input.taskId}.`,
+    `When I run /to-spec, write the spec to ${input.specPath}, then link it to the task's \`spec\` property by running exactly:`,
+    "",
+    "```bash",
+    linkSpecCommand(input.taskId, input.specPath),
+    "```",
+    "",
     "This repo isn't checked out on the task's branch, so don't infer the task from the branch name.",
   ].join("\n");
 }

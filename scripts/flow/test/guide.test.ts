@@ -195,8 +195,35 @@ describe("research and spec", () => {
     expect(fake.launches).toHaveLength(1);
   });
 
-  test("cancelling the editor launches nothing", async () => {
-    const fake = fakeContext({ branches: { [MAIN_REPO]: "main" } });
+  test("spec grills the task description as-is when the editor is saved unchanged", async () => {
+    const fake = fakeContext({
+      answers: [false],
+      branches: { [MAIN_REPO]: "main" },
+      onSession: () => {
+        fake.files.add(SPEC);
+      },
+    });
+    await fake.seed("task_1", (t) => {
+      t.stages.new.done = true;
+    });
+
+    await stageCommand(fake.ctx, "spec", "task_1");
+
+    expect(fake.editorTemplates[0]).toContain("Description of task_1");
+    const session = fake.launches[0]?.session;
+    expect(session?.kind === "fresh" && session.prompt).toStartWith(
+      "/grill-me # task_1: Title of task_1",
+    );
+    expect(session?.kind === "fresh" && session.prompt).toContain("Description of task_1");
+    expect(session?.kind === "fresh" && session.prompt).toContain("--rawfile spec");
+    expect((await fake.task("task_1")).stages.spec.done).toBe(true);
+  });
+
+  test("emptying the editor launches nothing", async () => {
+    const fake = fakeContext({
+      branches: { [MAIN_REPO]: "main" },
+      proc: { editText: async () => "" },
+    });
     await fake.seed("task_1", (t) => {
       t.stages.new.done = true;
     });

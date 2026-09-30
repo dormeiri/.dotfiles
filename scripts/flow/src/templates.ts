@@ -24,20 +24,26 @@ export function researchTemplate(task: TaskDetails): string {
   ].join("\n");
 }
 
-export function solutionTemplate(task: TaskDetails, researchPath: string | undefined): string {
+// The task's Solution Overview was already approved at verification, so it's the starting point as-is.
+export function specTemplate(task: TaskDetails, researchPath: string | undefined): string {
   return [
+    "<!-- This is what /grill-me will stress-test. Edit it if needed; empty it to cancel. -->",
     ...taskHeader(task),
     ...(researchPath ? [`Research: ${researchPath}`, ""] : []),
-    "## Proposed solution",
-    "",
-    "<!-- How do you want to solve it? This is what /grill-me will stress-test. Leave blank to cancel. -->",
-    "",
   ].join("\n");
+}
+
+function stripComments(text: string): string {
+  return text.replace(COMMENT, "").trim();
+}
+
+// Undefined means the user emptied the editor, which we treat as cancelling.
+export function editedText(edited: string): string | undefined {
+  return stripComments(edited) || undefined;
 }
 
 // Undefined means the user saved nothing beyond the template, which we treat as cancelling.
 export function editorResult(template: string, edited: string): string | undefined {
-  const strip = (text: string) => text.replace(COMMENT, "").trim();
-  const result = strip(edited);
-  return result && result !== strip(template) ? result : undefined;
+  const result = editedText(edited);
+  return result !== stripComments(template) ? result : undefined;
 }

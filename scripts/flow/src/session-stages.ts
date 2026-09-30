@@ -1,7 +1,7 @@
 import { type Context, refreshTaskDetails } from "./context.ts";
 import { grillPrompt, implementPrompt, researchPrompt, reviewPrompt } from "./stage-prompts.ts";
 import type { SessionStage, TaskState } from "./state.ts";
-import { editorResult, researchTemplate, solutionTemplate } from "./templates.ts";
+import { editedText, editorResult, researchTemplate, specTemplate } from "./templates.ts";
 
 export interface Session {
   ctx: Context;
@@ -59,15 +59,12 @@ export const SESSION_STAGES: Record<SessionStage, SessionStageSpec> = {
   spec: {
     inWorktree: false,
     async prompt(session) {
-      const { task } = session;
-      const details = await refreshTaskDetails(session.ctx, task);
-      const template = solutionTemplate(details, await existingResearch(session));
-      const solution = await fromEditor(
-        session,
-        template,
-        "No proposed solution written, so the spec was cancelled.",
-      );
-      return solution && grillPrompt({ taskId: task.taskId, solution, specPath: task.specPath });
+      const { ctx, task } = session;
+      const details = await refreshTaskDetails(ctx, task);
+      const template = specTemplate(details, await existingResearch(session));
+      const text = editedText(await ctx.fx.proc.editText(template));
+      if (!text) ctx.fx.log.warn("The editor was emptied, so the spec was cancelled.");
+      return text && grillPrompt({ taskId: task.taskId, task: text, specPath: task.specPath });
     },
     findOutput: (session) => fileOutput(session, session.task.specPath),
   },
