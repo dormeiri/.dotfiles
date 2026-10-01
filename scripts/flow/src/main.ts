@@ -6,6 +6,8 @@ import {
   homeCommand,
   newCommand,
   openCommand,
+  prCommand,
+  sessionCommand,
   stageCommand,
   statusCommand,
 } from "./commands.ts";
@@ -44,6 +46,12 @@ for (const [stage, description] of stages) {
 }
 
 program
+  .command("session")
+  .description("Start a new Claude session for the task, outside the stages")
+  .argument("[id]", "task ID (inferred from the branch, else picked)")
+  .action((id?: string) => sessionCommand(ctx, id));
+
+program
   .command("status")
   .description("Show in-flight tasks, their stages and setup state")
   .argument("[id]", "a single task to show")
@@ -54,6 +62,12 @@ program
   .description("Open the task in Port")
   .argument("[id]", "task ID (inferred from the branch, else picked)")
   .action((id?: string) => openCommand(ctx, id));
+
+program
+  .command("pr")
+  .description("Open the task's PR")
+  .argument("[id]", "task ID (inferred from the branch, else picked)")
+  .action((id?: string) => prCommand(ctx, id));
 
 program
   .command("archive")

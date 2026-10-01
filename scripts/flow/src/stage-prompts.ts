@@ -72,3 +72,21 @@ export function reviewPrompt(input: {
     "After the review, stay in this session: I'll ask for fixes. Commit each fix and push it to this PR's branch.",
   ].join("\n");
 }
+
+export function freeSessionPrompt(input: {
+  taskId: string;
+  branch?: string;
+  specPath?: string;
+  researchPath?: string;
+  prUrl?: string;
+}): string {
+  return [
+    taskLine(input.taskId),
+    ...(input.branch ? [`Branch: ${input.branch}`] : []),
+    ...(input.specPath ? [`Spec: ${input.specPath}`] : []),
+    ...(input.researchPath ? [`Research: ${input.researchPath}`] : []),
+    ...(input.prUrl ? [`PR: ${input.prUrl}`] : []),
+    "",
+    "This is context for a session about the task. Don't start working yet; reply briefly and wait for what I ask.",
+  ].join("\n");
+}

@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 ## Read the task
 
-`port api entities get task task_<id> | jq '{title: .title, description: .properties.description, assignee: .properties.assignee, reporter: .properties.reporter, status: .properties.status}'`
+`port api entities get task task_<id> | jq '{title: .title, description: .properties.description, status: .properties.status, expected_size: .properties.expected_size, assignee: .relations.assignee, reporter: .relations.reporter, team_iteration: .relations.team_iteration}'`
 
 ## Assignee and reporter
 
@@ -88,20 +88,26 @@ If the user matches multiple teams or doesn't match any team, use the most relev
 
 ## Update task
 
-If human available, ask the user for confirmation, then update the task with the following command:
+If human available, ask the user for confirmation, then update the task with a PATCH that includes only the fields you are changing:
 
 ```bash
-port api entities update task task_<id> --data << EOF
-'{
-  "properties": {
-    "status": "<status>",
-    "description": "<description>",
-    "expected_size": "<expected_size>",
-  },
-  "relations": {
-    "assignee": "<assignee>",
-    "reporter": "<reporter>"
-  }
-}'
+cat > /tmp/desc_<id>.md <<'EOF'
+<description markdown>
 EOF
+
+port api call -X PATCH /blueprints/task/entities/task_<id> --data "$(jq -n --rawfile d /tmp/desc_<id>.md '{
+  properties: {
+    description: $d,
+    status: "<status>",
+    expected_size: "<expected_size>"
+  },
+  relations: {
+    assignee: "<assignee>",
+    reporter: "<reporter>"
+  }
+}')" && rm -f /tmp/desc_<id>.md
 ```
+
+- Do NOT use `port api entities update`: it sends a PUT that replaces the whole entity (dropping any property or relation you omit) and fails with `must have required property 'expected_size'` when required fields are missing. Its `--data` flag also expects a file path, not inline JSON.
+- Omit any property or relation that isn't changing.
+- Build the JSON with `jq --rawfile` so the markdown description is escaped correctly.

@@ -5,6 +5,8 @@ import {
   homeCommand,
   newCommand,
   openCommand,
+  prCommand,
+  sessionCommand,
   stageCommand,
   statusCommand,
 } from "../src/commands.ts";
@@ -577,8 +579,8 @@ describe("picking the task", () => {
 });
 
 describe("flow with no arguments", () => {
-  test("offers in-flight tasks and runs the picked task's next stage without asking again", async () => {
-    const fake = fakeContext({ answers: ["task_1", false], files: [SPEC] });
+  test("offers in-flight tasks and runs the stage picked from the task's menu", async () => {
+    const fake = fakeContext({ answers: ["task_1", "impl", false], files: [SPEC] });
     await fake.seed("task_1", readyWorktree);
     await fake.seed("task_old", (t) => {
       t.archived = true;
@@ -587,6 +589,14 @@ describe("flow with no arguments", () => {
     await homeCommand(fake.ctx);
 
     expect(fake.prompts[0]).toMatchObject({ kind: "filterSelect", options: ["task_1"] });
+    expect(fake.prompts[1]?.options).toEqual([
+      "impl",
+      "session",
+      "open-task",
+      "open-pr",
+      "archive",
+      "later",
+    ]);
     expect(
       fake.launches[0]?.session.kind === "fresh" && fake.launches[0].session.prompt,
     ).toStartWith("/implement");
@@ -600,7 +610,81 @@ describe("flow with no arguments", () => {
 
     await homeCommand(fake.ctx);
 
-    expect(fake.prompts[1]?.options).toEqual(["research", "spec", "later"]);
+    expect(fake.prompts[1]?.options).toEqual([
+      "research",
+      "spec",
+      "session",
+      "open-task",
+      "archive",
+      "later",
+    ]);
+    expect(fake.launches).toEqual([]);
+  });
+
+  test("opens the task and the PR from the menu, then returns to it", async () => {
+    const opened: string[] = [];
+    const fake = fakeContext({
+      answers: ["task_1", "open-task", "open-pr", "later"],
+      proc: {
+        openUrl: async (url) => {
+          opened.push(url);
+        },
+      },
+    });
+    await fake.seed("task_1", (t) => {
+      readyWorktree(t);
+      t.stages.impl.done = true;
+      t.prUrl = "https://github.com/o/r/pull/7";
+    });
+
+    await homeCommand(fake.ctx);
+
+    expect(opened).toEqual([
+      "https://app.getport.io/taskEntity?identifier=task_1",
+      "https://github.com/o/r/pull/7",
+    ]);
+    expect(fake.prompts.slice(1).map((p) => p.options)).toEqual([
+      ["review", "session", "open-task", "open-pr", "archive", "later"],
+      ["review", "session", "open-task", "open-pr", "archive", "later"],
+      ["review", "session", "open-task", "open-pr", "archive", "later"],
+    ]);
+    expect(fake.launches).toEqual([]);
+  });
+
+  test("still offers opening once every stage is done", async () => {
+    const fake = fakeContext({ answers: ["task_1", "later"] });
+    await fake.seed("task_1", (t) => {
+      readyWorktree(t);
+      t.stages.impl.done = true;
+      t.stages.review.done = true;
+      t.prUrl = "https://github.com/o/r/pull/7";
+    });
+
+    await homeCommand(fake.ctx);
+
+    expect(fake.prompts[1]?.options).toEqual([
+      "session",
+      "open-task",
+      "open-pr",
+      "archive",
+      "later",
+    ]);
+  });
+
+  test("archives the task from the menu after confirming", async () => {
+    const fake = fakeContext({ answers: ["task_1", "archive", false, "archive", true] });
+    await fake.seed("task_1", readyWorktree);
+
+    await homeCommand(fake.ctx);
+
+    expect(fake.prompts.map((p) => p.kind)).toEqual([
+      "filterSelect",
+      "select",
+      "confirm",
+      "select",
+      "confirm",
+    ]);
+    expect((await fake.task("task_1")).archived).toBe(true);
     expect(fake.launches).toEqual([]);
   });
 
@@ -608,6 +692,51 @@ describe("flow with no arguments", () => {
     const fake = fakeContext();
     await homeCommand(fake.ctx);
     expect(fake.logged("info")[0]).toContain("flow new");
+  });
+});
+
+describe("flow session", () => {
+  test("starts a fresh session in the ready worktree with the task's context", async () => {
+    const fake = fakeContext({ files: [SPEC] });
+    await fake.seed("task_1", (t) => {
+      readyWorktree(t);
+      t.prUrl = "https://github.com/o/r/pull/7";
+    });
+
+    await sessionCommand(fake.ctx, "task_1");
+
+    const [launch] = fake.launches;
+    expect(launch?.cwd).toBe(WORKTREE);
+    expect(launch?.permissionMode).toBe(undefined);
+    expect(launch?.addDirs).toEqual([`${MAIN_REPO}/.scratch/task_1`]);
+    const prompt = launch?.session.kind === "fresh" ? launch.session.prompt : "";
+    expect(prompt).toContain("Task: task_1 (https://app.getport.io/taskEntity?identifier=task_1)");
+    expect(prompt).toContain(`Spec: ${SPEC}`);
+    expect(prompt).not.toContain("Research:");
+    expect(prompt).toContain("PR: https://github.com/o/r/pull/7");
+    const task = await fake.task("task_1");
+    expect(Object.values(task.stages).some((stage) => stage.sessionId)).toBe(false);
+  });
+
+  test("runs in the main repo while the worktree isn't ready", async () => {
+    const fake = fakeContext({ branches: { [MAIN_REPO]: "main" } });
+    await fake.seed("task_1");
+
+    await sessionCommand(fake.ctx, "task_1");
+
+    expect(fake.launches[0]?.cwd).toBe(MAIN_REPO);
+    expect(fake.launches[0]?.addDirs).toEqual([]);
+    expect(fake.logged("info")[0]).toContain("main repo");
+  });
+
+  test("the flow picker starts a session and returns to the menu", async () => {
+    const fake = fakeContext({ answers: ["task_1", "session", "later"] });
+    await fake.seed("task_1", readyWorktree);
+
+    await homeCommand(fake.ctx);
+
+    expect(fake.launches.map((l) => l.cwd)).toEqual([WORKTREE]);
+    expect(fake.prompts).toHaveLength(3);
   });
 });
 
@@ -639,6 +768,59 @@ describe("status and archive", () => {
     await openCommand(fake.ctx, "task_untracked");
 
     expect(opened).toEqual(["https://app.getport.io/taskEntity?identifier=task_untracked"]);
+  });
+
+  test("pr opens the recorded PR", async () => {
+    const opened: string[] = [];
+    const fake = fakeContext({
+      proc: {
+        openUrl: async (url) => {
+          opened.push(url);
+        },
+      },
+    });
+    await fake.seed("task_1", (t) => {
+      t.prUrl = "https://github.com/o/r/pull/7";
+    });
+
+    await prCommand(fake.ctx, "task_1");
+
+    expect(opened).toEqual(["https://github.com/o/r/pull/7"]);
+  });
+
+  test("pr finds an unrecorded PR from the worktree and records it", async () => {
+    const opened: string[] = [];
+    const fake = fakeContext({
+      proc: {
+        prUrl: async (cwd) => (cwd === WORKTREE ? "https://github.com/o/r/pull/8" : undefined),
+        openUrl: async (url) => {
+          opened.push(url);
+        },
+      },
+    });
+    await fake.seed("task_1", readyWorktree);
+
+    await prCommand(fake.ctx, "task_1");
+
+    expect(opened).toEqual(["https://github.com/o/r/pull/8"]);
+    expect((await fake.task("task_1")).prUrl).toBe("https://github.com/o/r/pull/8");
+  });
+
+  test("pr warns when the task has no PR", async () => {
+    const opened: string[] = [];
+    const fake = fakeContext({
+      proc: {
+        openUrl: async (url) => {
+          opened.push(url);
+        },
+      },
+    });
+    await fake.seed("task_1", readyWorktree);
+
+    await prCommand(fake.ctx, "task_1");
+
+    expect(opened).toEqual([]);
+    expect(fake.logged("warn")).toEqual(["task_1 has no PR yet."]);
   });
 
   test("archive removes the task from the in-flight list", async () => {

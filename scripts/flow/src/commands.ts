@@ -1,7 +1,7 @@
 import { type Context, fetchPortTask, loadTask } from "./context.ts";
 import type { Choice } from "./effects.ts";
 import { errorMessage } from "./errors.ts";
-import { chooseNext, runFrom } from "./guide.ts";
+import { chooseNext, runFreeSession, runFrom } from "./guide.ts";
 import { headlessResultText, parseTaskIdMarker } from "./marker.ts";
 import {
   MY_TASKS_QUERY,
@@ -11,9 +11,9 @@ import {
   sortMyTasks,
 } from "./my-tasks.ts";
 import { resolveTask } from "./resolve.ts";
-import { setupGate } from "./stage-machine.ts";
+import { nextChoices, STAGE_LABELS, setupGate } from "./stage-machine.ts";
 import { createTaskPrompt } from "./stage-prompts.ts";
-import { newTaskState, type SessionStage, type TaskState } from "./state.ts";
+import { newTaskState, type SessionStage, type Stage, type TaskState } from "./state.ts";
 import { describeNext, formatStatus } from "./status.ts";
 import { notTracked } from "./store.ts";
 import { artifactPaths, taskUrl } from "./task.ts";
@@ -133,13 +133,57 @@ export async function stageCommand(
   if (taskId) await runFrom(ctx, taskId, stage);
 }
 
+type HomeAction = Stage | "session" | "open-task" | "open-pr" | "archive" | "later";
+
+function homeActions(task: TaskState): Choice<HomeAction>[] {
+  // impl opens the PR, but it can also be opened by hand once the spec is done.
+  const mayHavePr = Boolean(task.prUrl) || task.stages.spec.done;
+  return [
+    ...nextChoices(task).map((stage) => ({ value: stage, label: STAGE_LABELS[stage] })),
+    { value: "session", label: "New session" },
+    { value: "open-task", label: "Open task in Port" },
+    ...(mayHavePr ? [{ value: "open-pr" as const, label: "Open PR" }] : []),
+    { value: "archive", label: "Archive" },
+    { value: "later", label: "Later" },
+  ];
+}
+
 export async function homeCommand(ctx: Context): Promise<void> {
   const tasks = await inFlight(ctx);
   if (tasks.length === 0) return;
   const taskId = await ctx.fx.prompts.filterSelect("Pick up a task", tasks.map(taskChoice));
   if (!taskId) return;
-  const next = await chooseNext(ctx, taskId, { confirmSingle: false });
-  if (next) await runFrom(ctx, taskId, next);
+  // Sessions, opening and a declined archive return to the menu, so the task can still be continued.
+  while (true) {
+    const task = await loadTask(ctx, taskId);
+    const action = await ctx.fx.prompts.select(`What next for ${taskId}?`, homeActions(task));
+    switch (action) {
+      case "session":
+        await runFreeSession(ctx, taskId);
+        break;
+      case "open-task":
+        await openTask(ctx, taskId);
+        break;
+      case "open-pr":
+        await openPr(ctx, task);
+        break;
+      case "archive":
+        if (await ctx.fx.prompts.confirm(`Archive ${taskId}? It leaves the in-flight list.`)) {
+          return archiveTask(ctx, taskId);
+        }
+        break;
+      case "later":
+      case undefined:
+        return;
+      default:
+        return runFrom(ctx, taskId, action);
+    }
+  }
+}
+
+export async function sessionCommand(ctx: Context, explicit: string | undefined): Promise<void> {
+  const taskId = await resolveTaskId(ctx, explicit);
+  if (taskId) await runFreeSession(ctx, taskId);
 }
 
 export async function statusCommand(ctx: Context, explicit: string | undefined): Promise<void> {
@@ -149,20 +193,52 @@ export async function statusCommand(ctx: Context, explicit: string | undefined):
   }
 }
 
-export async function openCommand(ctx: Context, explicit: string | undefined): Promise<void> {
-  // Any task can be opened, tracked by flow or not.
-  const taskId = explicit ?? (await resolveTaskId(ctx, undefined));
-  if (!taskId) return;
+async function openTask(ctx: Context, taskId: string): Promise<void> {
   const url = taskUrl(taskId);
   await ctx.fx.proc.openUrl(url);
   ctx.fx.log.info(`Opened ${url}`);
 }
 
-export async function archiveCommand(ctx: Context, explicit: string | undefined): Promise<void> {
+async function openPr(ctx: Context, task: TaskState): Promise<void> {
+  const { taskId } = task;
+  // impl records the URL; a PR opened outside flow is still found through the worktree's branch.
+  let url = task.prUrl;
+  if (!url && task.worktreePath) {
+    url = await ctx.fx.proc.prUrl(task.worktreePath);
+    if (url) {
+      const found = url;
+      await ctx.fx.store.update(taskId, (t) => {
+        t.prUrl = found;
+      });
+    }
+  }
+  if (!url) {
+    ctx.fx.log.warn(`${taskId} has no PR yet.`);
+    return;
+  }
+  await ctx.fx.proc.openUrl(url);
+  ctx.fx.log.info(`Opened ${url}`);
+}
+
+export async function openCommand(ctx: Context, explicit: string | undefined): Promise<void> {
+  // Any task can be opened, tracked by flow or not.
+  const taskId = explicit ?? (await resolveTaskId(ctx, undefined));
+  if (taskId) await openTask(ctx, taskId);
+}
+
+export async function prCommand(ctx: Context, explicit: string | undefined): Promise<void> {
   const taskId = await resolveTaskId(ctx, explicit);
-  if (!taskId) return;
+  if (taskId) await openPr(ctx, await loadTask(ctx, taskId));
+}
+
+async function archiveTask(ctx: Context, taskId: string): Promise<void> {
   await ctx.fx.store.update(taskId, (task) => {
     task.archived = true;
   });
   ctx.fx.log.success(`Archived ${taskId}.`);
+}
+
+export async function archiveCommand(ctx: Context, explicit: string | undefined): Promise<void> {
+  const taskId = await resolveTaskId(ctx, explicit);
+  if (taskId) await archiveTask(ctx, taskId);
 }

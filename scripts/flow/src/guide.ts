@@ -5,6 +5,7 @@ import type { ClaudeLaunch } from "./effects.ts";
 import { mainRepoWarning, SESSION_STAGES, type Session } from "./session-stages.ts";
 import { AWS_PROFILE } from "./setup.ts";
 import { nextChoices, STAGE_LABELS, setupGate } from "./stage-machine.ts";
+import { freeSessionPrompt } from "./stage-prompts.ts";
 import type { SessionStage, Stage } from "./state.ts";
 import { taskUrl } from "./task.ts";
 
@@ -103,6 +104,34 @@ async function runSession(ctx: Context, taskId: string, stage: SessionStage): Pr
     const outcome = await finishSession({ ctx, task: await loadTask(ctx, taskId), stage, cwd });
     if (outcome !== "retry") return outcome === "done";
   }
+}
+
+// A session outside the stages: no stage prompt, no completion check, nothing marked done.
+export async function runFreeSession(ctx: Context, taskId: string): Promise<void> {
+  const { fx, config } = ctx;
+  const task = await loadTask(ctx, taskId);
+  const gate = setupGate(task, fx.proc.isAlive);
+  const inWorktree = gate.kind === "ready";
+  const cwd = inWorktree ? gate.worktreePath : config.mainRepo;
+  if (!inWorktree) {
+    fx.log.info("The worktree isn't ready, so the session runs in the main repo.");
+    const warning = mainRepoWarning(await fx.git.currentBranch(config.mainRepo));
+    if (warning) fx.log.warn(warning);
+  }
+  const existing = async (path: string) => ((await fx.fs.exists(path)) ? path : undefined);
+  const prompt = freeSessionPrompt({
+    taskId,
+    branch: task.branch,
+    specPath: await existing(task.specPath),
+    researchPath: await existing(task.researchPath),
+    prUrl: task.prUrl,
+  });
+  await fx.proc.claudeInteractive({
+    cwd,
+    session: { kind: "fresh", id: randomUUID(), prompt },
+    // Research and spec live in the main repo's .scratch/, outside the worktree.
+    addDirs: inWorktree ? [dirname(task.specPath)] : [],
+  });
 }
 
 async function sessionCwd(
