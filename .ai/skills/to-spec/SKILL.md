@@ -21,4 +21,4 @@ Check with the user that these seams match their expectations.
 - Minor: The solution will require minor changes to the user's workflow or system, and will not cause any disruption.
 - Silent: The solution will not require any changes to the user's workflow or system
 
-4. Write the spec using [./SPEC_FORMAT.md](./SPEC_FORMAT.md). Write in `specs/` directory if not specified otherwise.
+4. Write the spec using [./SPEC_FORMAT.md](./SPEC_FORMAT.md). Write in `.scratch/` directory if not specified otherwise.

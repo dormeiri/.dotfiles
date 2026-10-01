@@ -7,8 +7,8 @@ set -euo pipefail
 LOCAL_TEMP_DIR="temp"
 SESSION_ID_FILE="$LOCAL_TEMP_DIR/.session_id"
 EASY_MODEL="composer-2.5"
-MEDIUM_MODEL="claude-5-sonnet-medium-thinking"
-HARD_MODEL="claude-5-sonnet-medium-thinking"
+MEDIUM_MODEL="claude-opus-5-5-medium"
+HARD_MODEL="claude-opus-5-5-high"
 USE_PLAN=false
 USE_PR=false
 AI_MODEL="$MEDIUM_MODEL"

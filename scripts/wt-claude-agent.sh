@@ -5,7 +5,8 @@ set -euo pipefail
 # Run from inside the worktree.
 
 LOCAL_TEMP_DIR="temp"
-MEDIUM_MODEL="claude-sonnet-5"
+MEDIUM_MODEL="claude-opus-5-5"
+HARD_MODEL="claude-opus-5-5"
 USE_PR=false
 AI_MODEL="$MEDIUM_MODEL"
 USE_HARD=false
@@ -21,8 +22,8 @@ usage() {
     echo ""
     echo "Options:"
     echo "  --pr              Create a PR after agent runs"
-    echo "  --hard            Use claude-opus-5 (mutually exclusive with --model)"
-    echo "  --model <model>   Claude model (default: claude-sonnet-5)"
+    echo "  --hard            Use $HARD_MODEL (mutually exclusive with --model)"
+    echo "  --model <model>   Claude model (default: $MEDIUM_MODEL)"
     echo "  --prompt <file>   Prompt file (skips editor)"
     echo "  --dry-run         Print actions without executing"
     echo "  --help            Show this help message"
@@ -62,7 +63,7 @@ if $USE_HARD && $MODEL_EXPLICIT; then
 fi
 
 if $USE_HARD; then
-    AI_MODEL="claude-opus-5"
+    AI_MODEL="$HARD_MODEL"
 fi
 
 mkdir -p "$LOCAL_TEMP_DIR"
