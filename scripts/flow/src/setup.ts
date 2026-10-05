@@ -11,8 +11,8 @@ export interface SetupOutcome {
 
 export const AWS_PROFILE = "Local/DeveloperAccess";
 
-export function worktreePath(config: Config, branch: string): string {
-  return join(config.worktreesDir, basename(config.mainRepo), branch);
+export function worktreePath(config: Config, branch: string, repo = config.mainRepo): string {
+  return join(config.worktreesDir, basename(repo), branch);
 }
 
 export function worktreeSteps(config: Config, branch: string, dir: string): SetupStep[] {
@@ -23,6 +23,25 @@ export function worktreeSteps(config: Config, branch: string, dir: string): Setu
       // --no-track: branching off origin/main would otherwise make `git push` target main.
       cmd: ["git", "worktree", "add", "--no-track", "-b", branch, dir, "origin/main"],
       cwd: config.mainRepo,
+    },
+  ];
+}
+
+// A companion repo needs no install step; an existing branch is reused so a retry keeps its commits.
+export function companionWorktreeSteps(
+  repo: string,
+  branch: string,
+  dir: string,
+  branchExists: boolean,
+): SetupStep[] {
+  return [
+    { label: "Fetch origin/main", cmd: ["git", "fetch", "origin", "main"], cwd: repo },
+    {
+      label: `Create the ${basename(repo)} worktree`,
+      cmd: branchExists
+        ? ["git", "worktree", "add", dir, branch]
+        : ["git", "worktree", "add", "--no-track", "-b", branch, dir, "origin/main"],
+      cwd: repo,
     },
   ];
 }
@@ -57,7 +76,7 @@ export function setupNotification(
     : { title, message: `Setup failed: ${outcome.error}` };
 }
 
-async function runSteps(fx: Effects, steps: SetupStep[]): Promise<string | undefined> {
+export async function runSteps(fx: Effects, steps: SetupStep[]): Promise<string | undefined> {
   for (const step of steps) {
     fx.log.info(`▶ ${step.label}`);
     const exitCode = await fx.proc.runStep(step);

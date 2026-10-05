@@ -33,6 +33,16 @@ export function specTemplate(task: TaskDetails, researchPath: string | undefined
   ].join("\n");
 }
 
+export function adrTemplate(task: TaskDetails): string {
+  return [
+    ...taskHeader(task),
+    "## Decision",
+    "",
+    "<!-- What was decided, and what were the alternatives? Leave blank to cancel. -->",
+    "",
+  ].join("\n");
+}
+
 function stripComments(text: string): string {
   return text.replace(COMMENT, "").trim();
 }

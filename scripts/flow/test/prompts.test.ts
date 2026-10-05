@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  afkSpecPrompt,
   createTaskPrompt,
   grillPrompt,
   implementPrompt,
@@ -36,6 +37,23 @@ describe("stage prompts", () => {
     expect(prompt.startsWith("/grill-me Do X")).toBe(true);
     expect(prompt).toContain(`write the spec to ${SPEC}`);
     expect(prompt).toContain(linkSpecCommand("task_1", SPEC));
+  });
+
+  test("main-repo sessions write ADRs under the task worktree's docs/decisions", () => {
+    const worktree = "/worktrees/port/task_1/slug";
+    const into = `${worktree}/docs/decisions/`;
+    const spec = { taskId: "task_1", task: "Do X", specPath: SPEC, worktree };
+    expect(grillPrompt(spec)).toContain(into);
+    expect(afkSpecPrompt(spec)).toContain(into);
+    expect(
+      researchPrompt({ taskId: "task_1", question: "How?", researchPath: RESEARCH, worktree }),
+    ).toContain(into);
+  });
+
+  test("without a worktree yet, main-repo sessions don't write ADRs at all", () => {
+    const prompt = grillPrompt({ taskId: "task_1", task: "Do X", specPath: SPEC });
+    expect(prompt).toContain("Don't write ADRs in this repo");
+    expect(prompt).toContain("`flow adr`");
   });
 
   test("the link command patches only the task's spec property from the file", () => {

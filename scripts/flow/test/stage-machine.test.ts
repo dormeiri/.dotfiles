@@ -45,16 +45,28 @@ describe("nextStage / nextChoices", () => {
     expect(nextChoices(t)).toEqual(["impl"]);
   });
 
-  test("impl leads to review, and a reviewed task has nothing next", () => {
+  test("impl leads to review alongside the optional docs, terraform and announcement", () => {
     const t = task((t) => {
       t.stages.new.done = true;
       t.stages.spec.done = true;
       t.stages.impl.done = true;
     });
-    expect(nextChoices(t)).toEqual(["review"]);
+    expect(nextChoices(t)).toEqual(["review", "docs", "terraform", "announcement"]);
     t.stages.review.done = true;
     expect(nextStage(t)).toBe(undefined);
+    expect(nextChoices(t)).toEqual(["docs", "terraform", "announcement"]);
+    t.stages.docs.done = true;
+    t.stages.terraform.done = true;
+    t.stages.announcement.done = true;
     expect(nextChoices(t)).toEqual([]);
+  });
+
+  test("docs, terraform and announcement aren't offered before impl is done", () => {
+    const t = task((t) => {
+      t.stages.new.done = true;
+      t.stages.spec.done = true;
+    });
+    expect(nextChoices(t)).toEqual(["impl"]);
   });
 });
 

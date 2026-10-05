@@ -2,7 +2,9 @@
 import { intro, log } from "@clack/prompts";
 import { Command } from "commander";
 import {
+  adrCommand,
   archiveCommand,
+  cdCommand,
   homeCommand,
   newCommand,
   openCommand,
@@ -27,15 +29,23 @@ const program = new Command("flow")
 
 program
   .command("new")
-  .description("Create a Port task from text, a URL, or $EDITOR, then set up its worktree")
-  .argument("[input...]", "the signal: text or a URL (opens $EDITOR when omitted)")
-  .action((input: string[]) => newCommand(ctx, input.join(" ")));
+  .description(
+    "Create a Port task from text, a URL, or $EDITOR, or pick one of your assigned tasks, then set up its worktree",
+  )
+  .argument("[input...]", "the signal: text or a URL (asks new or assigned task when omitted)")
+  .option("--afk", "skip verification and grilling: spec and implement headlessly up to a draft PR")
+  .action((input: string[], opts: { afk?: boolean }) =>
+    newCommand(ctx, input.join(" "), { afk: opts.afk }),
+  );
 
 const stages: [SessionStage, string][] = [
   ["research", "Research the task in the main repo"],
   ["spec", "Grill the task's approved description into a spec"],
   ["impl", "Implement the spec in the worktree and open a draft PR"],
   ["review", "Review the branch in a fresh session"],
+  ["docs", "Document the change in port-docs and open a draft PR"],
+  ["terraform", "Support the change in the Terraform provider and open a draft PR"],
+  ["announcement", "Draft a product announcement in Slack with /product-announcement"],
 ];
 for (const [stage, description] of stages) {
   program
@@ -50,6 +60,18 @@ program
   .description("Start a new Claude session for the task, outside the stages")
   .argument("[id]", "task ID (inferred from the branch, else picked)")
   .action((id?: string) => sessionCommand(ctx, id));
+
+program
+  .command("cd")
+  .description("cd into the task's worktree (needs the `flow` shell function)")
+  .argument("[id]", "task ID (inferred from the branch, else picked)")
+  .action((id?: string) => cdCommand(ctx, id));
+
+program
+  .command("adr")
+  .description("Record a significant decision for the task as an ADR, at any stage")
+  .argument("[id]", "task ID (inferred from the branch, else picked)")
+  .action((id?: string) => adrCommand(ctx, id));
 
 program
   .command("status")

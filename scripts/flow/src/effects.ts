@@ -27,12 +27,18 @@ export interface SetupStep {
   optional?: boolean;
 }
 
+export interface HeadlessLaunch {
+  cwd: string;
+  prompt: string;
+  // Without a permission mode, only allowedTools may run (dontAsk).
+  allowedTools?: string[];
+  permissionMode?: "auto";
+  sessionId?: string;
+  addDirs?: string[];
+}
+
 export interface ProcessRunner {
-  claudeHeadless(opts: {
-    cwd: string;
-    prompt: string;
-    allowedTools: string[];
-  }): Promise<ProcResult>;
+  claudeHeadless(launch: HeadlessLaunch): Promise<ProcResult>;
   claudeInteractive(launch: ClaudeLaunch): Promise<void>;
   searchPortTasks(query: unknown): Promise<unknown>;
   getPortTask(taskId: string): Promise<PortTask>;
@@ -89,4 +95,6 @@ export interface Effects {
   git: GitProbe;
   log: Logger;
   sleep(ms: number): Promise<void>;
+  // False when flow wasn't started through the shell function that performs the cd on exit.
+  changeDir(path: string): Promise<boolean>;
 }

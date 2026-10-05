@@ -25,13 +25,17 @@ export interface FakeOptions {
   cwd?: string;
   onSession?: (launch: ClaudeLaunch) => void | Promise<void>;
   onSleep?: () => void | Promise<void>;
+  withoutShellFunction?: boolean;
 }
 
 export const MAIN_REPO = "/repo";
+export const DOCS_REPO = "/port-docs";
+export const TERRAFORM_REPO = "/terraform-provider-port-labs";
 
 export function fakeContext(options: FakeOptions = {}) {
   const config: Config = {
     mainRepo: MAIN_REPO,
+    companionRepos: { docs: DOCS_REPO, terraform: TERRAFORM_REPO },
     worktreesDir: "/worktrees",
     pullMiddlewaresScript: "/scripts/pull-middlewares.sh",
     stateDir: mkdtempSync(join(tmpdir(), "flow-test-")),
@@ -43,6 +47,7 @@ export function fakeContext(options: FakeOptions = {}) {
   const editorTemplates: string[] = [];
   const spawnedRunners: { taskId: string; logPath: string }[] = [];
   const notifications: { title: string; message: string }[] = [];
+  const cds: string[] = [];
   const files = new Set(options.files);
   const texts = new Map<string, string>();
 
@@ -124,6 +129,11 @@ export function fakeContext(options: FakeOptions = {}) {
     async sleep() {
       await options.onSleep?.();
     },
+    async changeDir(path) {
+      if (options.withoutShellFunction) return false;
+      cds.push(path);
+      return true;
+    },
   };
 
   const ctx: Context = { fx, config, cwd: options.cwd ?? "/somewhere" };
@@ -138,6 +148,7 @@ export function fakeContext(options: FakeOptions = {}) {
     editorTemplates,
     spawnedRunners,
     notifications,
+    cds,
     files,
     texts,
     remainingAnswers: answers,

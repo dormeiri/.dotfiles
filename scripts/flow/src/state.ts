@@ -1,14 +1,23 @@
 import { z } from "zod";
 
-export const STAGES = ["new", "research", "spec", "impl", "review"] as const;
+// Companion stages open a follow-up PR in another repo once the implementation is done.
+export const COMPANION_STAGES = ["docs", "terraform"] as const;
+export type CompanionStage = (typeof COMPANION_STAGES)[number];
+
+// Optional stages offered once the implementation is done.
+export const FOLLOW_UP_STAGES = [...COMPANION_STAGES, "announcement"] as const;
+
+export const STAGES = ["new", "research", "spec", "impl", "review", ...FOLLOW_UP_STAGES] as const;
 export type Stage = (typeof STAGES)[number];
 export type SessionStage = Exclude<Stage, "new">;
 
-export const STATE_VERSION = 1;
+export const STATE_VERSION = 3;
 
 const stageStateSchema = z.object({
   done: z.boolean(),
   sessionId: z.uuid().optional(),
+  // Only companion stages record their PR here; the implementation's PR is the task's prUrl.
+  prUrl: z.string().optional(),
 });
 
 const setupSchema = z.object({
@@ -40,7 +49,19 @@ export class StateError extends Error {}
 type Migration = (state: Record<string, unknown>) => Record<string, unknown>;
 
 // Keyed by the version each migration upgrades from; add one whenever STATE_VERSION is bumped.
-const MIGRATIONS: Record<number, Migration> = {};
+const MIGRATIONS: Record<number, Migration> = {
+  1: (state) => ({
+    ...state,
+    stages: {
+      ...(state.stages as Record<string, unknown>),
+      ...Object.fromEntries(COMPANION_STAGES.map((stage) => [stage, { done: false }])),
+    },
+  }),
+  2: (state) => ({
+    ...state,
+    stages: { ...(state.stages as Record<string, unknown>), announcement: { done: false } },
+  }),
+};
 
 export function migrate(raw: unknown): unknown {
   if (typeof raw !== "object" || raw === null || !("version" in raw)) {

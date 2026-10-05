@@ -1,4 +1,4 @@
-import type { Stage, TaskState } from "./state.ts";
+import { FOLLOW_UP_STAGES, type Stage, type TaskState } from "./state.ts";
 
 const REQUIRED: Stage[] = ["new", "spec", "impl", "review"];
 
@@ -8,6 +8,9 @@ export const STAGE_LABELS: Record<Stage, string> = {
   spec: "Spec",
   impl: "Implement",
   review: "Review",
+  docs: "Docs PR in port-docs (optional)",
+  terraform: "Terraform provider PR (optional)",
+  announcement: "Send product announcement (optional)",
 };
 
 export function nextStage(task: TaskState): Stage | undefined {
@@ -16,9 +19,10 @@ export function nextStage(task: TaskState): Stage | undefined {
 
 export function nextChoices(task: TaskState): Stage[] {
   const next = nextStage(task);
-  if (!next) return [];
   if (next === "spec" && !task.stages.research.done) return ["research", "spec"];
-  return [next];
+  const required = next ? [next] : [];
+  if (!task.stages.impl.done) return required;
+  return [...required, ...FOLLOW_UP_STAGES.filter((stage) => !task.stages[stage].done)];
 }
 
 export type SetupGate =

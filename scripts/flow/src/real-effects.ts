@@ -65,21 +65,14 @@ const portEntitySchema = z.object({
 
 function processRunner(): ProcessRunner {
   return {
-    claudeHeadless: ({ cwd, prompt, allowedTools }) =>
-      capture(
-        [
-          "claude",
-          "-p",
-          prompt,
-          "--output-format",
-          "json",
-          "--permission-mode",
-          "dontAsk",
-          "--allowedTools",
-          allowedTools.join(","),
-        ],
-        cwd,
-      ),
+    claudeHeadless({ cwd, prompt, allowedTools, permissionMode, sessionId, addDirs = [] }) {
+      const args = ["claude", "-p", prompt, "--output-format", "json"];
+      args.push("--permission-mode", permissionMode ?? "dontAsk");
+      if (allowedTools?.length) args.push("--allowedTools", allowedTools.join(","));
+      if (sessionId) args.push("--session-id", sessionId);
+      for (const dir of addDirs) args.push("--add-dir", dir);
+      return capture(args, cwd);
+    },
 
     async claudeInteractive({ cwd, session, permissionMode, addDirs }) {
       const args = ["claude"];
@@ -277,6 +270,15 @@ async function notify(title: string, message: string): Promise<void> {
   ]);
 }
 
+// A process can't change its parent shell's directory, so the `flow` shell function cds into
+// whatever path is left in this file once flow exits.
+async function changeDir(path: string): Promise<boolean> {
+  const file = process.env.FLOW_CD_FILE;
+  if (!file) return false;
+  await writeFile(file, path);
+  return true;
+}
+
 export function realEffects(config: Config): Effects {
   return {
     proc: processRunner(),
@@ -287,5 +289,6 @@ export function realEffects(config: Config): Effects {
     git: gitProbe,
     log: clackLogger,
     sleep: (ms) => Bun.sleep(ms),
+    changeDir,
   };
 }

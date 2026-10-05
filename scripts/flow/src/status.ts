@@ -1,5 +1,5 @@
 import { nextChoices, type SetupGate, STAGE_LABELS } from "./stage-machine.ts";
-import { STAGES, type TaskState } from "./state.ts";
+import { COMPANION_STAGES, STAGES, type TaskState } from "./state.ts";
 
 export function describeNext(task: TaskState): string {
   const choices = nextChoices(task);
@@ -32,6 +32,10 @@ export function formatStatus(task: TaskState, gate: SetupGate): string {
     `setup: ${describeSetup(gate)}`,
     describeNext(task),
     ...(task.prUrl ? [`PR: ${task.prUrl}`] : []),
+    ...COMPANION_STAGES.flatMap((stage) => {
+      const url = task.stages[stage].prUrl;
+      return url ? [`${stage} PR: ${url}`] : [];
+    }),
     ...(sessions.length > 0 ? ["sessions:", ...sessions] : []),
   ].join("\n");
 }

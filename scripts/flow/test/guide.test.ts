@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
+  adrCommand,
   archiveCommand,
   CREATE_TASK_TOOLS,
+  cdCommand,
   homeCommand,
   newCommand,
   openCommand,
@@ -10,8 +12,9 @@ import {
   stageCommand,
   statusCommand,
 } from "../src/commands.ts";
+import type { HeadlessLaunch } from "../src/effects.ts";
 import type { TaskState } from "../src/state.ts";
-import { fakeContext, MAIN_REPO, readyWorktree } from "./fakes.ts";
+import { DOCS_REPO, fakeContext, MAIN_REPO, readyWorktree } from "./fakes.ts";
 
 const RESEARCH = `${MAIN_REPO}/.scratch/task_1/research.md`;
 const SPEC = `${MAIN_REPO}/.scratch/task_1/spec.md`;
@@ -27,7 +30,7 @@ const createdTask = (taskId: string) => ({
 
 describe("flow new", () => {
   test("creates the task headlessly, verifies it, starts setup and offers research or spec", async () => {
-    const headless: { cwd: string; prompt: string; allowedTools: string[] }[] = [];
+    const headless: HeadlessLaunch[] = [];
     const opened: string[] = [];
     const fake = fakeContext({
       answers: [true, "later"],
@@ -73,6 +76,7 @@ describe("flow new", () => {
   test("opens the editor when no input is given and stops if nothing was written", async () => {
     let headlessRuns = 0;
     const fake = fakeContext({
+      answers: ["create"],
       proc: {
         claudeHeadless: async () => {
           headlessRuns++;
@@ -83,8 +87,86 @@ describe("flow new", () => {
 
     await newCommand(fake.ctx, "");
 
+    expect(fake.prompts[0]).toMatchObject({ kind: "select", options: ["create", "mine"] });
     expect(fake.editorTemplates).toHaveLength(1);
     expect(headlessRuns).toBe(0);
+    expect(await fake.fx.store.list()).toEqual([]);
+  });
+
+  test("an assigned task is tracked without /create-task, refined with /update-task, then verified", async () => {
+    let headlessRuns = 0;
+    const opened: string[] = [];
+    const fake = fakeContext({
+      answers: ["mine", "task_mine", true, true, true, "later"],
+      proc: {
+        claudeHeadless: async () => {
+          headlessRuns++;
+          return { exitCode: 0, stdout: "", stderr: "" };
+        },
+        openUrl: async (url) => {
+          opened.push(url);
+        },
+        searchPortTasks: async () => ({
+          entities: [{ identifier: "task_mine", title: "Mine" }],
+        }),
+      },
+    });
+
+    await newCommand(fake.ctx, undefined);
+
+    expect(headlessRuns).toBe(0);
+    expect(fake.editorTemplates).toEqual([]);
+    expect(fake.launches).toHaveLength(1);
+    const [launch] = fake.launches;
+    expect(launch?.cwd).toBe(MAIN_REPO);
+    expect(launch?.session.kind === "fresh" && launch.session.prompt).toStartWith(
+      "/update-task\n\nTask: task_mine",
+    );
+    expect(fake.prompts.map((p) => p.message)).toEqual([
+      "Start from",
+      "Which of your tasks?",
+      "Open it in the browser?",
+      "Iterate on the description with Claude (/update-task) first?",
+      "Does the task look right?",
+      "What next for task_mine?",
+    ]);
+    const url = "https://app.getport.io/taskEntity?identifier=task_mine";
+    expect(opened).toEqual([url, url]);
+    const task = await fake.task("task_mine");
+    expect(task.title).toBe("Title of task_mine");
+    expect(task.stages.new.done).toBe(true);
+  });
+
+  test("an assigned task can skip opening it and the description session", async () => {
+    const opened: string[] = [];
+    const fake = fakeContext({
+      answers: ["mine", "task_mine", false, false, false],
+      proc: {
+        openUrl: async (url) => {
+          opened.push(url);
+        },
+        searchPortTasks: async () => ({
+          entities: [{ identifier: "task_mine", title: "Mine" }],
+        }),
+      },
+    });
+
+    await newCommand(fake.ctx, undefined);
+
+    expect(fake.launches).toEqual([]);
+    // Only verification opens it.
+    expect(opened).toHaveLength(1);
+    expect((await fake.task("task_mine")).stages.new.done).toBe(false);
+  });
+
+  test("without assigned tasks, nothing is tracked", async () => {
+    const fake = fakeContext({ answers: ["mine"] });
+
+    await newCommand(fake.ctx, undefined);
+
+    expect(fake.logged("warn")).toContain(
+      "You have no open tasks in the current or next iteration.",
+    );
     expect(await fake.fx.store.list()).toEqual([]);
   });
 
@@ -236,6 +318,27 @@ describe("research and spec", () => {
     expect((await fake.task("task_1")).stages.spec.sessionId).toBe(undefined);
   });
 
+  test("spec writes ADRs into the task's worktree, even while setup is still running", async () => {
+    const WORKTREE = "/worktrees/repo/task_1/slug";
+    const fake = fakeContext({
+      answers: ["leave"],
+      files: [WORKTREE],
+      branches: { [MAIN_REPO]: "main" },
+    });
+    await fake.seed("task_1", (t) => {
+      t.stages.new.done = true;
+      t.setup = { status: "running", logPath: "/logs/task_1.log" };
+    });
+
+    await stageCommand(fake.ctx, "spec", "task_1");
+
+    const [launch] = fake.launches;
+    expect(launch?.cwd).toBe(MAIN_REPO);
+    expect(launch?.addDirs).toEqual([WORKTREE]);
+    const prompt = launch?.session.kind === "fresh" ? launch.session.prompt : "";
+    expect(prompt).toContain(`${WORKTREE}/docs/decisions/`);
+  });
+
   test("spec's editor template links existing research and the grill prompt names the spec path", async () => {
     const fake = fakeContext({
       answers: [false],
@@ -365,7 +468,9 @@ describe("implement", () => {
     const task = await fake.task("task_1");
     expect(task.stages.impl.done).toBe(true);
     expect(task.prUrl).toBe("https://github.com/o/r/pull/7");
-    expect(fake.prompts.map((p) => p.message)).toEqual(["Continue to Review?"]);
+    expect(fake.prompts.map((p) => p.options)).toEqual([
+      ["review", "docs", "terraform", "announcement", "later"],
+    ]);
   });
 
   test("asks before implementing without a spec file", async () => {
@@ -508,7 +613,7 @@ describe("implement", () => {
 
 describe("review", () => {
   test("reviews against the merge-base in the worktree and completes on confirmation", async () => {
-    const fake = fakeContext({ answers: [true] });
+    const fake = fakeContext({ answers: [true, "later"] });
     await fake.seed("task_1", (t) => {
       readyWorktree(t);
       t.stages.impl.done = true;
@@ -516,6 +621,8 @@ describe("review", () => {
     });
 
     await stageCommand(fake.ctx, "review", "task_1");
+
+    expect(fake.prompts.at(-1)?.options).toEqual(["docs", "terraform", "announcement", "later"]);
 
     const session = fake.launches[0]?.session;
     expect(fake.launches[0]?.cwd).toBe(WORKTREE);
@@ -536,6 +643,146 @@ describe("review", () => {
     await stageCommand(fake.ctx, "review", "task_1");
 
     expect((await fake.task("task_1")).stages.review.done).toBe(false);
+  });
+});
+
+describe("docs and terraform PRs", () => {
+  const DOCS_WORKTREE = "/worktrees/port-docs/task_1/slug";
+  const implemented = (t: TaskState) => {
+    readyWorktree(t);
+    t.stages.impl.done = true;
+    t.prUrl = "https://github.com/o/r/pull/7";
+  };
+
+  test("creates a docs worktree on the task's branch and records the docs PR on its stage", async () => {
+    const steps: string[][] = [];
+    const fake = fakeContext({
+      answers: ["later"],
+      files: [SPEC],
+      proc: {
+        runStep: async (step) => {
+          steps.push([step.cwd, ...step.cmd]);
+          return 0;
+        },
+        prUrl: async (cwd) =>
+          cwd === DOCS_WORKTREE ? "https://github.com/o/docs/pull/3" : undefined,
+      },
+    });
+    await fake.seed("task_1", implemented);
+
+    await stageCommand(fake.ctx, "docs", "task_1");
+
+    expect(steps).toEqual([
+      [DOCS_REPO, "git", "fetch", "origin", "main"],
+      [
+        DOCS_REPO,
+        ...["git", "worktree", "add", "--no-track", "-b", "task_1/slug", DOCS_WORKTREE],
+        "origin/main",
+      ],
+    ]);
+    const [launch] = fake.launches;
+    expect(launch?.cwd).toBe(DOCS_WORKTREE);
+    expect(launch?.permissionMode).toBe("auto");
+    expect(launch?.addDirs).toEqual([`${MAIN_REPO}/.scratch/task_1`, WORKTREE]);
+    const prompt = launch?.session.kind === "fresh" ? launch.session.prompt : "";
+    expect(prompt).toStartWith("Document this task's user-facing change in port-docs.");
+    expect(prompt).toContain(`Spec: ${SPEC}`);
+    expect(prompt).toContain("Implementation PR: https://github.com/o/r/pull/7");
+    expect(prompt).toContain("gh pr create --draft");
+    const task = await fake.task("task_1");
+    expect(task.stages.docs.done).toBe(true);
+    expect(task.stages.docs.prUrl).toBe("https://github.com/o/docs/pull/3");
+    expect(task.prUrl).toBe("https://github.com/o/r/pull/7");
+    expect(fake.prompts.at(-1)?.options).toEqual(["review", "terraform", "announcement", "later"]);
+  });
+
+  test("reuses an existing terraform worktree", async () => {
+    const TF_WORKTREE = "/worktrees/terraform-provider-port-labs/task_1/slug";
+    let steps = 0;
+    const fake = fakeContext({
+      answers: ["leave"],
+      files: [TF_WORKTREE],
+      proc: {
+        runStep: async () => {
+          steps++;
+          return 0;
+        },
+      },
+    });
+    await fake.seed("task_1", implemented);
+
+    await stageCommand(fake.ctx, "terraform", "task_1");
+
+    expect(steps).toBe(0);
+    expect(fake.launches[0]?.cwd).toBe(TF_WORKTREE);
+    const prompt = fake.launches[0]?.session.kind === "fresh" && fake.launches[0].session.prompt;
+    expect(prompt).toStartWith("Add support for this task's change to the Port Terraform provider");
+    expect((await fake.task("task_1")).stages.terraform.done).toBe(false);
+  });
+
+  test("checks out an existing local branch instead of creating it", async () => {
+    const steps: string[][] = [];
+    const fake = fakeContext({
+      answers: ["leave"],
+      existingBranches: ["task_1/slug"],
+      proc: {
+        runStep: async (step) => {
+          steps.push(step.cmd);
+          return 0;
+        },
+      },
+    });
+    await fake.seed("task_1", implemented);
+
+    await stageCommand(fake.ctx, "docs", "task_1");
+
+    expect(steps.at(-1)).toEqual(["git", "worktree", "add", DOCS_WORKTREE, "task_1/slug"]);
+  });
+
+  test("a failed worktree creation launches nothing", async () => {
+    const fake = fakeContext({ proc: { runStep: async () => 128 } });
+    await fake.seed("task_1", implemented);
+
+    await stageCommand(fake.ctx, "docs", "task_1");
+
+    expect(fake.launches).toEqual([]);
+    expect(fake.logged("error").at(-1)).toContain("Couldn't create the docs worktree");
+  });
+
+  test("status lists the companion PRs", async () => {
+    const fake = fakeContext();
+    await fake.seed("task_1", (t) => {
+      implemented(t);
+      t.stages.terraform = { done: true, prUrl: "https://github.com/o/tf/pull/4" };
+    });
+
+    await statusCommand(fake.ctx, "task_1");
+
+    expect(fake.logged("message")[0]).toContain("terraform PR: https://github.com/o/tf/pull/4");
+  });
+});
+
+describe("announcement", () => {
+  test("runs /product-announcement in the worktree and completes on confirmation", async () => {
+    const fake = fakeContext({ answers: [true, "later"], files: [SPEC] });
+    await fake.seed("task_1", (t) => {
+      readyWorktree(t);
+      t.stages.impl.done = true;
+      t.prUrl = "https://github.com/o/r/pull/7";
+      t.stages.docs = { done: true, prUrl: "https://github.com/o/docs/pull/3" };
+    });
+
+    await stageCommand(fake.ctx, "announcement", "task_1");
+
+    const [launch] = fake.launches;
+    expect(launch?.cwd).toBe(WORKTREE);
+    expect(launch?.permissionMode).toBe(undefined);
+    const prompt = launch?.session.kind === "fresh" ? launch.session.prompt : "";
+    expect(prompt).toStartWith("/product-announcement");
+    expect(prompt).toContain(`Spec: ${SPEC}`);
+    expect(prompt).toContain("PR: https://github.com/o/r/pull/7");
+    expect(prompt).toContain("Docs PR: https://github.com/o/docs/pull/3");
+    expect((await fake.task("task_1")).stages.announcement.done).toBe(true);
   });
 });
 
@@ -592,6 +839,8 @@ describe("flow with no arguments", () => {
     expect(fake.prompts[1]?.options).toEqual([
       "impl",
       "session",
+      "cd",
+      "adr",
       "open-task",
       "open-pr",
       "archive",
@@ -614,6 +863,7 @@ describe("flow with no arguments", () => {
       "research",
       "spec",
       "session",
+      "adr",
       "open-task",
       "archive",
       "later",
@@ -643,11 +893,20 @@ describe("flow with no arguments", () => {
       "https://app.getport.io/taskEntity?identifier=task_1",
       "https://github.com/o/r/pull/7",
     ]);
-    expect(fake.prompts.slice(1).map((p) => p.options)).toEqual([
-      ["review", "session", "open-task", "open-pr", "archive", "later"],
-      ["review", "session", "open-task", "open-pr", "archive", "later"],
-      ["review", "session", "open-task", "open-pr", "archive", "later"],
-    ]);
+    const menu = [
+      "review",
+      "docs",
+      "terraform",
+      "announcement",
+      "session",
+      "cd",
+      "adr",
+      "open-task",
+      "open-pr",
+      "archive",
+      "later",
+    ];
+    expect(fake.prompts.slice(1).map((p) => p.options)).toEqual([menu, menu, menu]);
     expect(fake.launches).toEqual([]);
   });
 
@@ -657,6 +916,9 @@ describe("flow with no arguments", () => {
       readyWorktree(t);
       t.stages.impl.done = true;
       t.stages.review.done = true;
+      t.stages.docs.done = true;
+      t.stages.terraform.done = true;
+      t.stages.announcement.done = true;
       t.prUrl = "https://github.com/o/r/pull/7";
     });
 
@@ -664,11 +926,23 @@ describe("flow with no arguments", () => {
 
     expect(fake.prompts[1]?.options).toEqual([
       "session",
+      "cd",
+      "adr",
       "open-task",
       "open-pr",
       "archive",
       "later",
     ]);
+  });
+
+  test("going to the worktree leaves flow so the shell can cd", async () => {
+    const fake = fakeContext({ answers: ["task_1", "cd"] });
+    await fake.seed("task_1", readyWorktree);
+
+    await homeCommand(fake.ctx);
+
+    expect(fake.cds).toEqual([WORKTREE]);
+    expect(fake.remainingAnswers).toEqual([]);
   });
 
   test("archives the task from the menu after confirming", async () => {
@@ -679,9 +953,9 @@ describe("flow with no arguments", () => {
 
     expect(fake.prompts.map((p) => p.kind)).toEqual([
       "filterSelect",
-      "select",
+      "filterSelect",
       "confirm",
-      "select",
+      "filterSelect",
       "confirm",
     ]);
     expect((await fake.task("task_1")).archived).toBe(true);
@@ -737,6 +1011,126 @@ describe("flow session", () => {
 
     expect(fake.launches.map((l) => l.cwd)).toEqual([WORKTREE]);
     expect(fake.prompts).toHaveLength(3);
+  });
+});
+
+describe("flow adr", () => {
+  const decided = { editText: async (initial: string) => `${initial}Use SQS over Kafka` };
+
+  test("starts /significant-decision-making in the worktree and commits there", async () => {
+    const fake = fakeContext({ files: [SPEC], proc: decided });
+    await fake.seed("task_1", readyWorktree);
+
+    await adrCommand(fake.ctx, "task_1");
+
+    const [launch] = fake.launches;
+    expect(launch?.cwd).toBe(WORKTREE);
+    expect(launch?.addDirs).toEqual([`${MAIN_REPO}/.scratch/task_1`]);
+    const prompt = launch?.session.kind === "fresh" ? launch.session.prompt : "";
+    expect(prompt).toStartWith("/significant-decision-making # task_1: Title of task_1");
+    expect(prompt).toContain("Use SQS over Kafka");
+    expect(prompt).toContain(`Spec: ${SPEC}`);
+    expect(prompt).toContain(
+      "under this repo's docs/decisions/, then commit it to the current branch",
+    );
+    const task = await fake.task("task_1");
+    expect(Object.values(task.stages).some((stage) => stage.sessionId)).toBe(false);
+    expect(fake.logged("warn")).toEqual([]);
+  });
+
+  test("waits for a running setup, then writes the ADR in the worktree", async () => {
+    const fake = fakeContext({
+      answers: ["wait"],
+      proc: decided,
+      onSleep: () =>
+        fake.fx.store
+          .update("task_1", (t) => {
+            t.setup = { status: "ready", logPath: "/logs/task_1.log" };
+          })
+          .then(() => {}),
+    });
+    await fake.seed("task_1", (t) => {
+      readyWorktree(t);
+      t.setup = { status: "running", logPath: "/logs/task_1.log" };
+    });
+
+    await adrCommand(fake.ctx, "task_1");
+
+    expect(fake.prompts[0]?.options).toEqual(["wait", "exit"]);
+    expect(fake.launches.map((l) => l.cwd)).toEqual([WORKTREE]);
+  });
+
+  test("never falls back to the main repo", async () => {
+    const fake = fakeContext({ proc: decided });
+    await fake.seed("task_1");
+
+    await adrCommand(fake.ctx, "task_1");
+
+    expect(fake.launches).toEqual([]);
+    expect(fake.logged("error")[0]).toContain("hasn't started yet");
+  });
+
+  test("an unedited decision cancels", async () => {
+    const fake = fakeContext();
+    await fake.seed("task_1", readyWorktree);
+
+    await adrCommand(fake.ctx, "task_1");
+
+    expect(fake.launches).toEqual([]);
+    expect(fake.logged("warn")).toEqual(["No decision written, so no ADR was started."]);
+  });
+
+  test("the flow picker records a decision and returns to the menu", async () => {
+    const fake = fakeContext({ answers: ["task_1", "adr", "later"], proc: decided });
+    await fake.seed("task_1", readyWorktree);
+
+    await homeCommand(fake.ctx);
+
+    expect(fake.launches.map((l) => l.cwd)).toEqual([WORKTREE]);
+    expect(fake.prompts).toHaveLength(3);
+  });
+});
+
+describe("flow cd", () => {
+  const DOCS_WORKTREE = "/worktrees/port-docs/task_1/slug";
+
+  test("goes straight to the only worktree", async () => {
+    const fake = fakeContext();
+    await fake.seed("task_1", readyWorktree);
+
+    await cdCommand(fake.ctx, "task_1");
+
+    expect(fake.cds).toEqual([WORKTREE]);
+    expect(fake.prompts).toEqual([]);
+  });
+
+  test("asks which one once a companion worktree exists", async () => {
+    const fake = fakeContext({ answers: [DOCS_WORKTREE], files: [DOCS_WORKTREE] });
+    await fake.seed("task_1", readyWorktree);
+
+    await cdCommand(fake.ctx, "task_1");
+
+    expect(fake.prompts[0]?.options).toEqual([WORKTREE, DOCS_WORKTREE]);
+    expect(fake.cds).toEqual([DOCS_WORKTREE]);
+  });
+
+  test("without a worktree there's nowhere to go", async () => {
+    const fake = fakeContext();
+    await fake.seed("task_1");
+
+    await cdCommand(fake.ctx, "task_1");
+
+    expect(fake.cds).toEqual([]);
+    expect(fake.logged("warn")).toEqual(["task_1 has no worktree yet."]);
+  });
+
+  test("without the shell function, prints the cd to run", async () => {
+    const fake = fakeContext({ withoutShellFunction: true });
+    await fake.seed("task_1", readyWorktree);
+
+    await cdCommand(fake.ctx, "task_1");
+
+    expect(fake.logged("info").at(-1)).toContain(`cd ${WORKTREE}`);
   });
 });
 

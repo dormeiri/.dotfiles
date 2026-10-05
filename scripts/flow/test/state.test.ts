@@ -44,6 +44,18 @@ describe("migrate", () => {
     expect(migrate({ version: STATE_VERSION, x: 1 })).toEqual({ version: STATE_VERSION, x: 1 });
   });
 
+  test("v1 gains pending docs, terraform and announcement stages", () => {
+    const { docs: _, terraform: __, announcement: ___, ...v1Stages } = state().stages;
+    const v1 = { ...JSON.parse(JSON.stringify(state())), version: 1, stages: v1Stages };
+    expect(parseTaskState(v1)).toEqual(state());
+  });
+
+  test("v2 gains a pending announcement stage", () => {
+    const { announcement: _, ...v2Stages } = state().stages;
+    const v2 = { ...JSON.parse(JSON.stringify(state())), version: 2, stages: v2Stages };
+    expect(parseTaskState(v2)).toEqual(state());
+  });
+
   test("fails for an older version it has no migration for", () => {
     expect(() => migrate({ version: 0 })).toThrow(/no migration from v0/);
   });

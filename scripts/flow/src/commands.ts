@@ -1,7 +1,15 @@
+import { basename } from "node:path";
+import { runAfk } from "./afk.ts";
 import { type Context, fetchPortTask, loadTask } from "./context.ts";
 import type { Choice } from "./effects.ts";
 import { errorMessage } from "./errors.ts";
-import { chooseNext, runFreeSession, runFrom } from "./guide.ts";
+import {
+  chooseNext,
+  runAdrSession,
+  runDescriptionSession,
+  runFreeSession,
+  runFrom,
+} from "./guide.ts";
 import { headlessResultText, parseTaskIdMarker } from "./marker.ts";
 import {
   MY_TASKS_QUERY,
@@ -11,9 +19,16 @@ import {
   sortMyTasks,
 } from "./my-tasks.ts";
 import { resolveTask } from "./resolve.ts";
+import { worktreePath } from "./setup.ts";
 import { nextChoices, STAGE_LABELS, setupGate } from "./stage-machine.ts";
 import { createTaskPrompt } from "./stage-prompts.ts";
-import { newTaskState, type SessionStage, type Stage, type TaskState } from "./state.ts";
+import {
+  COMPANION_STAGES,
+  newTaskState,
+  type SessionStage,
+  type Stage,
+  type TaskState,
+} from "./state.ts";
 import { describeNext, formatStatus } from "./status.ts";
 import { notTracked } from "./store.ts";
 import { artifactPaths, taskUrl } from "./task.ts";
@@ -53,7 +68,7 @@ async function resolveTaskId(
   }
 }
 
-async function pickMyTask(ctx: Context): Promise<string | undefined> {
+async function pickMyTask(ctx: Context, message: string): Promise<string | undefined> {
   const { fx } = ctx;
   let tasks: MyTask[];
   try {
@@ -66,7 +81,33 @@ async function pickMyTask(ctx: Context): Promise<string | undefined> {
     fx.log.warn("You have no open tasks in the current or next iteration.");
     return undefined;
   }
-  return fx.prompts.filterSelect("Which task did /create-task create?", tasks.map(myTaskChoice));
+  return fx.prompts.filterSelect(message, tasks.map(myTaskChoice));
+}
+
+async function trackTask(ctx: Context, taskId: string): Promise<string> {
+  const { fx, config } = ctx;
+  if (await fx.store.get(taskId)) {
+    fx.log.info(`${taskId} is already tracked.`);
+    return taskId;
+  }
+  const port = await fetchPortTask(ctx, taskId);
+  await fx.store.create(
+    newTaskState({
+      taskId,
+      title: port?.title ?? taskId,
+      branch: port?.branch,
+      ...artifactPaths(config.mainRepo, taskId),
+      now: new Date(),
+    }),
+  );
+  return taskId;
+}
+
+async function adoptMyTask(ctx: Context): Promise<string | undefined> {
+  const taskId = await pickMyTask(ctx, "Which of your tasks?");
+  if (!taskId) return undefined;
+  if (await ctx.fx.prompts.confirm("Open it in the browser?")) await openTask(ctx, taskId);
+  return trackTask(ctx, taskId);
 }
 
 async function createTask(ctx: Context, input: string | undefined): Promise<string | undefined> {
@@ -92,34 +133,42 @@ async function createTask(ctx: Context, input: string | undefined): Promise<stri
   spinner.stop(taskId ? `Created ${taskId}` : "/create-task didn't report a TASK_ID");
   if (!taskId) {
     fx.log.message(output.trim() || result.stderr.trim() || "(no output)");
-    taskId = await pickMyTask(ctx);
+    taskId = await pickMyTask(ctx, "Which task did /create-task create?");
     if (!taskId) {
       fx.log.warn("No task picked.");
       return undefined;
     }
   }
-
-  if (await fx.store.get(taskId)) {
-    fx.log.info(`${taskId} is already tracked.`);
-    return taskId;
-  }
-  const port = await fetchPortTask(ctx, taskId);
-  await fx.store.create(
-    newTaskState({
-      taskId,
-      title: port?.title ?? taskId,
-      branch: port?.branch,
-      ...artifactPaths(config.mainRepo, taskId),
-      now: new Date(),
-    }),
-  );
-  return taskId;
+  return trackTask(ctx, taskId);
 }
 
-export async function newCommand(ctx: Context, input: string | undefined): Promise<void> {
-  const taskId = await createTask(ctx, input);
+type NewSource = "create" | "mine";
+
+export async function newCommand(
+  ctx: Context,
+  input: string | undefined,
+  { afk = false }: { afk?: boolean } = {},
+): Promise<void> {
+  const { fx } = ctx;
+  const source: NewSource | undefined = input?.trim()
+    ? "create"
+    : await fx.prompts.select("Start from", [
+        { value: "create", label: "A new task" },
+        { value: "mine", label: "One of my assigned tasks" },
+      ]);
+  if (!source) return;
+  const taskId = source === "mine" ? await adoptMyTask(ctx) : await createTask(ctx, input);
   if (!taskId) return;
-  if (!(await loadTask(ctx, taskId)).stages.new.done) return runFrom(ctx, taskId, "new");
+  if (afk) return runAfk(ctx, taskId);
+  if (!(await loadTask(ctx, taskId)).stages.new.done) {
+    if (
+      source === "mine" &&
+      (await fx.prompts.confirm("Iterate on the description with Claude (/update-task) first?"))
+    ) {
+      await runDescriptionSession(ctx, taskId);
+    }
+    return runFrom(ctx, taskId, "new");
+  }
   const next = await chooseNext(ctx, taskId, { confirmSingle: true });
   if (next) await runFrom(ctx, taskId, next);
 }
@@ -133,7 +182,7 @@ export async function stageCommand(
   if (taskId) await runFrom(ctx, taskId, stage);
 }
 
-type HomeAction = Stage | "session" | "open-task" | "open-pr" | "archive" | "later";
+type HomeAction = Stage | "session" | "cd" | "adr" | "open-task" | "open-pr" | "archive" | "later";
 
 function homeActions(task: TaskState): Choice<HomeAction>[] {
   // impl opens the PR, but it can also be opened by hand once the spec is done.
@@ -141,6 +190,8 @@ function homeActions(task: TaskState): Choice<HomeAction>[] {
   return [
     ...nextChoices(task).map((stage) => ({ value: stage, label: STAGE_LABELS[stage] })),
     { value: "session", label: "New session" },
+    ...(task.worktreePath ? [{ value: "cd" as const, label: "Go to the worktree" }] : []),
+    { value: "adr", label: "Record a decision (ADR)" },
     { value: "open-task", label: "Open task in Port" },
     ...(mayHavePr ? [{ value: "open-pr" as const, label: "Open PR" }] : []),
     { value: "archive", label: "Archive" },
@@ -156,10 +207,17 @@ export async function homeCommand(ctx: Context): Promise<void> {
   // Sessions, opening and a declined archive return to the menu, so the task can still be continued.
   while (true) {
     const task = await loadTask(ctx, taskId);
-    const action = await ctx.fx.prompts.select(`What next for ${taskId}?`, homeActions(task));
+    const action = await ctx.fx.prompts.filterSelect(`What next for ${taskId}?`, homeActions(task));
     switch (action) {
       case "session":
         await runFreeSession(ctx, taskId);
+        break;
+      case "cd":
+        // The shell only moves once flow exits.
+        if (await goToWorktree(ctx, task)) return;
+        break;
+      case "adr":
+        await runAdrSession(ctx, taskId);
         break;
       case "open-task":
         await openTask(ctx, taskId);
@@ -184,6 +242,51 @@ export async function homeCommand(ctx: Context): Promise<void> {
 export async function sessionCommand(ctx: Context, explicit: string | undefined): Promise<void> {
   const taskId = await resolveTaskId(ctx, explicit);
   if (taskId) await runFreeSession(ctx, taskId);
+}
+
+async function worktreeChoices(ctx: Context, task: TaskState): Promise<Choice<string>[]> {
+  const { fx, config } = ctx;
+  const choices = task.worktreePath
+    ? [{ value: task.worktreePath, label: basename(config.mainRepo) }]
+    : [];
+  const { branch } = task;
+  if (!branch) return choices;
+  for (const stage of COMPANION_STAGES) {
+    const repo = config.companionRepos[stage];
+    const dir = worktreePath(config, branch, repo);
+    if (await fx.fs.exists(dir)) choices.push({ value: dir, label: basename(repo) });
+  }
+  return choices;
+}
+
+// True when the shell will cd once flow exits.
+async function goToWorktree(ctx: Context, task: TaskState): Promise<boolean> {
+  const { fx } = ctx;
+  const choices = await worktreeChoices(ctx, task);
+  const [only] = choices;
+  if (!only) {
+    fx.log.warn(`${task.taskId} has no worktree yet.`);
+    return false;
+  }
+  const dir =
+    choices.length === 1 ? only.value : await fx.prompts.select("Which worktree?", choices);
+  if (!dir) return false;
+  if (!(await fx.changeDir(dir))) {
+    fx.log.info(`flow wasn't started from the \`flow\` shell function, so cd yourself: cd ${dir}`);
+    return false;
+  }
+  fx.log.success(`Moving to ${dir}`);
+  return true;
+}
+
+export async function cdCommand(ctx: Context, explicit: string | undefined): Promise<void> {
+  const taskId = await resolveTaskId(ctx, explicit);
+  if (taskId) await goToWorktree(ctx, await loadTask(ctx, taskId));
+}
+
+export async function adrCommand(ctx: Context, explicit: string | undefined): Promise<void> {
+  const taskId = await resolveTaskId(ctx, explicit);
+  if (taskId) await runAdrSession(ctx, taskId);
 }
 
 export async function statusCommand(ctx: Context, explicit: string | undefined): Promise<void> {

@@ -2,12 +2,23 @@ import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { type Context, loadTask, refreshTaskDetails } from "./context.ts";
 import type { ClaudeLaunch } from "./effects.ts";
-import { mainRepoWarning, SESSION_STAGES, type Session } from "./session-stages.ts";
-import { AWS_PROFILE } from "./setup.ts";
-import { nextChoices, STAGE_LABELS, setupGate } from "./stage-machine.ts";
-import { freeSessionPrompt } from "./stage-prompts.ts";
-import type { SessionStage, Stage } from "./state.ts";
+import {
+  existingWorktree,
+  mainRepoWarning,
+  SESSION_STAGES,
+  type Session,
+} from "./session-stages.ts";
+import { AWS_PROFILE, companionWorktreeSteps, runSteps, worktreePath } from "./setup.ts";
+import { nextChoices, nextStage, STAGE_LABELS, setupGate } from "./stage-machine.ts";
+import {
+  adrPrompt,
+  describeTaskPrompt,
+  freeSessionPrompt,
+  type TaskContext,
+} from "./stage-prompts.ts";
+import type { CompanionStage, SessionStage, Stage, TaskState } from "./state.ts";
 import { taskUrl } from "./task.ts";
+import { adrTemplate, editorResult } from "./templates.ts";
 
 const SETUP_POLL_MS = 2000;
 
@@ -25,14 +36,15 @@ export async function chooseNext(
   { confirmSingle }: { confirmSingle: boolean },
 ): Promise<Stage | undefined> {
   const { fx } = ctx;
-  const choices = nextChoices(await loadTask(ctx, taskId));
-  const [first] = choices;
-  if (!first) {
+  const task = await loadTask(ctx, taskId);
+  const choices = nextChoices(task);
+  if (!nextStage(task)) {
     fx.log.success(
-      `${taskId} went through every stage. Run \`flow archive ${taskId}\` once it's merged.`,
+      `${taskId} went through every required stage. Run \`flow archive ${taskId}\` once it's merged.`,
     );
-    return undefined;
   }
+  const [first] = choices;
+  if (!first) return undefined;
   let chosen: Stage | undefined;
   if (choices.length === 1) {
     const accepted =
@@ -106,8 +118,15 @@ async function runSession(ctx: Context, taskId: string, stage: SessionStage): Pr
   }
 }
 
-// A session outside the stages: no stage prompt, no completion check, nothing marked done.
-export async function runFreeSession(ctx: Context, taskId: string): Promise<void> {
+interface SideSession {
+  task: TaskState;
+  cwd: string;
+  inWorktree: boolean;
+  context: TaskContext;
+}
+
+// Sessions outside the stages run in the worktree once it's ready, else in the main repo.
+async function sideSession(ctx: Context, taskId: string): Promise<SideSession> {
   const { fx, config } = ctx;
   const task = await loadTask(ctx, taskId);
   const gate = setupGate(task, fx.proc.isAlive);
@@ -119,19 +138,53 @@ export async function runFreeSession(ctx: Context, taskId: string): Promise<void
     if (warning) fx.log.warn(warning);
   }
   const existing = async (path: string) => ((await fx.fs.exists(path)) ? path : undefined);
-  const prompt = freeSessionPrompt({
+  const context = {
     taskId,
     branch: task.branch,
     specPath: await existing(task.specPath),
     researchPath: await existing(task.researchPath),
     prUrl: task.prUrl,
-  });
-  await fx.proc.claudeInteractive({
-    cwd,
+  };
+  return { task, cwd, inWorktree, context };
+}
+
+function launchSideSession(ctx: Context, side: SideSession, prompt: string): Promise<void> {
+  return ctx.fx.proc.claudeInteractive({
+    cwd: side.cwd,
     session: { kind: "fresh", id: randomUUID(), prompt },
     // Research and spec live in the main repo's .scratch/, outside the worktree.
-    addDirs: inWorktree ? [dirname(task.specPath)] : [],
+    addDirs: side.inWorktree ? [dirname(side.task.specPath)] : [],
   });
+}
+
+// Runs before verification, so there's no worktree yet; the description lives in Port.
+export async function runDescriptionSession(ctx: Context, taskId: string): Promise<void> {
+  await ctx.fx.proc.claudeInteractive({
+    cwd: ctx.config.mainRepo,
+    session: { kind: "fresh", id: randomUUID(), prompt: describeTaskPrompt(taskId) },
+    addDirs: [],
+  });
+}
+
+// A session outside the stages: no stage prompt, no completion check, nothing marked done.
+export async function runFreeSession(ctx: Context, taskId: string): Promise<void> {
+  const side = await sideSession(ctx, taskId);
+  await launchSideSession(ctx, side, freeSessionPrompt(side.context));
+}
+
+// Optional at any stage, so like a free session nothing is marked done. The ADR belongs on the
+// task's branch, so unlike a free session it waits for the worktree instead of using the main repo.
+export async function runAdrSession(ctx: Context, taskId: string): Promise<void> {
+  const { fx } = ctx;
+  const template = adrTemplate(await refreshTaskDetails(ctx, await loadTask(ctx, taskId)));
+  const decision = editorResult(template, await fx.proc.editText(template));
+  if (!decision) {
+    fx.log.warn("No decision written, so no ADR was started.");
+    return;
+  }
+  if (!(await ensureWorktree(ctx, taskId))) return;
+  const side = await sideSession(ctx, taskId);
+  await launchSideSession(ctx, side, adrPrompt({ ...side.context, decision }));
 }
 
 async function sessionCwd(
@@ -140,7 +193,12 @@ async function sessionCwd(
   stage: SessionStage,
 ): Promise<string | undefined> {
   const { fx, config } = ctx;
-  if (SESSION_STAGES[stage].inWorktree) return ensureWorktree(ctx, taskId);
+  switch (SESSION_STAGES[stage].workspace) {
+    case "worktree":
+      return ensureWorktree(ctx, taskId);
+    case "companion":
+      return ensureCompanionWorktree(ctx, taskId, stage as CompanionStage);
+  }
   const warning = mainRepoWarning(await fx.git.currentBranch(config.mainRepo));
   if (warning) fx.log.warn(warning);
   await fx.fs.ensureDir(dirname((await loadTask(ctx, taskId)).specPath));
@@ -194,6 +252,29 @@ async function ensureWorktree(ctx: Context, taskId: string): Promise<string | un
   }
 }
 
+async function ensureCompanionWorktree(
+  ctx: Context,
+  taskId: string,
+  stage: CompanionStage,
+): Promise<string | undefined> {
+  const { fx, config } = ctx;
+  const { branch } = await loadTask(ctx, taskId);
+  if (!branch) {
+    fx.log.error(`${taskId} has no branch yet, so there's no branch for the ${stage} PR.`);
+    return undefined;
+  }
+  const repo = config.companionRepos[stage];
+  const dir = worktreePath(config, branch, repo);
+  if (await fx.fs.exists(dir)) return dir;
+  const branchExists = await fx.git.branchExists(repo, branch);
+  const error = await runSteps(fx, companionWorktreeSteps(repo, branch, dir, branchExists));
+  if (error) {
+    fx.log.error(`Couldn't create the ${stage} worktree: ${error}.`);
+    return undefined;
+  }
+  return dir;
+}
+
 async function waitForSetup(ctx: Context, taskId: string, logPath: string): Promise<void> {
   const { fx } = ctx;
   const tail = fx.proc.tailLog(logPath);
@@ -206,14 +287,29 @@ async function waitForSetup(ctx: Context, taskId: string, logPath: string): Prom
   }
 }
 
+// Research and spec live in the main repo's .scratch/, outside any worktree. Main-repo stages
+// write ADRs into the task's worktree; companion stages read the implementation from it.
+async function stageAddDirs(ctx: Context, task: TaskState, stage: SessionStage): Promise<string[]> {
+  const scratch = dirname(task.specPath);
+  switch (SESSION_STAGES[stage].workspace) {
+    case "main-repo": {
+      const worktree = await existingWorktree(ctx, task);
+      return worktree ? [worktree] : [];
+    }
+    case "worktree":
+      return [scratch];
+    case "companion":
+      return task.worktreePath ? [scratch, task.worktreePath] : [scratch];
+  }
+}
+
 async function planLaunch(session: Session): Promise<ClaudeLaunch | undefined> {
   const { ctx, task, stage, cwd } = session;
   const spec = SESSION_STAGES[stage];
   const options = {
     cwd,
     permissionMode: spec.permissionMode,
-    // Research and spec live in the main repo's .scratch/, outside the worktree.
-    addDirs: spec.inWorktree ? [dirname(task.specPath)] : [],
+    addDirs: await stageAddDirs(ctx, task, stage),
   };
   const previous = task.stages[stage].sessionId;
   if (previous) {
@@ -233,10 +329,12 @@ type SessionOutcome = "done" | "retry" | "leave";
 async function finishSession(session: Session): Promise<SessionOutcome> {
   const { ctx, task, stage } = session;
   const { fx } = ctx;
+  const isCompanion = SESSION_STAGES[stage].workspace === "companion";
   const markDone = (prUrl?: string) =>
     fx.store.update(task.taskId, (t) => {
       t.stages[stage].done = true;
-      if (prUrl) t.prUrl = prUrl;
+      if (prUrl && isCompanion) t.stages[stage].prUrl = prUrl;
+      else if (prUrl) t.prUrl = prUrl;
     });
 
   const { findOutput } = SESSION_STAGES[stage];
