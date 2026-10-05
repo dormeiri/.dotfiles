@@ -55,6 +55,8 @@ alias cn="concurrently"
 export CLAUDE_CODE_NO_FLICKER=1
 alias "cc"="claude"
 
+alias cafe="caffeinate"
+
 # yazi
 
 o() {
@@ -94,7 +96,18 @@ fpr() {
 }
 
 alias wta='$HOME/.dotfiles/scripts/wta.sh'
-alias flow='$HOME/.dotfiles/scripts/flow/src/main.ts'
+# A function, not an alias, so `flow cd` can move this shell (like yazi's `o` above).
+unalias flow 2>/dev/null
+flow() {
+	local tmp="$(mktemp -t "flow-cwd.XXXXXX")" cwd code
+	FLOW_CD_FILE="$tmp" "$HOME/.dotfiles/scripts/flow/src/main.ts" "$@"
+	code=$?
+	if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+		builtin cd -- "$cwd"
+	fi
+	rm -f -- "$tmp"
+	return $code
+}
 
 wtf() {
     local BIND_ENTER='enter:become(echo {} | cut -d" " -f1 | xargs echo)'
