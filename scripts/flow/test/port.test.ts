@@ -1,10 +1,22 @@
 import { describe, expect, test } from "bun:test";
-import { myTaskChoice, parseMyTasks, sortMyTasks } from "../src/my-tasks.ts";
+import { myTaskChoice, parseMyTasks, sortMyTasks, taskIdFromBranch } from "../src/port.ts";
 
 const task = (identifier: string, properties: Record<string, unknown> = {}) => ({
   identifier,
   title: `Title ${identifier}`,
   properties,
+});
+
+describe("taskIdFromBranch", () => {
+  test("takes everything before the slash of a task branch", () => {
+    expect(taskIdFromBranch("task_abc123/fix-login")).toBe("task_abc123");
+  });
+
+  test("ignores non-task branches", () => {
+    expect(taskIdFromBranch("main")).toBe(undefined);
+    expect(taskIdFromBranch("feature/foo")).toBe(undefined);
+    expect(taskIdFromBranch(undefined)).toBe(undefined);
+  });
 });
 
 describe("parseMyTasks", () => {

@@ -96,6 +96,7 @@ export function fileStore(stateDir: string): StateStore {
         const task = await get(taskId);
         if (!task) throw notTracked(taskId);
         change(task);
+        task.updatedAt = new Date().toISOString();
         await write(task);
         return task;
       });

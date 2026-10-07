@@ -1,22 +1,12 @@
+import type { Agent } from "./agent.ts";
+import type { PortTask } from "./port.ts";
+import type { PrStatus } from "./pr.ts";
 import type { StateStore } from "./store.ts";
 
 export interface ProcResult {
   exitCode: number;
   stdout: string;
   stderr: string;
-}
-
-export interface ClaudeLaunch {
-  cwd: string;
-  session: { kind: "fresh"; id: string; prompt: string } | { kind: "resume"; id: string };
-  permissionMode?: "auto";
-  addDirs: string[];
-}
-
-export interface PortTask {
-  title: string;
-  description: string;
-  branch?: string;
 }
 
 export interface SetupStep {
@@ -27,25 +17,15 @@ export interface SetupStep {
   optional?: boolean;
 }
 
-export interface HeadlessLaunch {
-  cwd: string;
-  prompt: string;
-  // Without a permission mode, only allowedTools may run (dontAsk).
-  allowedTools?: string[];
-  permissionMode?: "auto";
-  sessionId?: string;
-  addDirs?: string[];
-}
-
 export interface ProcessRunner {
-  claudeHeadless(launch: HeadlessLaunch): Promise<ProcResult>;
-  claudeInteractive(launch: ClaudeLaunch): Promise<void>;
-  searchPortTasks(query: unknown): Promise<unknown>;
+  searchPortEntities(blueprint: string, query: unknown): Promise<unknown>;
   getPortTask(taskId: string): Promise<PortTask>;
   markPortTaskInProgress(taskId: string): Promise<void>;
   assume(profile: string): Promise<boolean>;
   runStep(step: SetupStep): Promise<number>;
   prUrl(cwd: string): Promise<string | undefined>;
+  // ref is a PR URL, or a branch of the repo at cwd; undefined when there's no PR or gh fails.
+  prStatus(ref: string, cwd: string): Promise<PrStatus | undefined>;
   openUrl(url: string): Promise<void>;
   editText(initial: string): Promise<string>;
   spawnSetupRunner(taskId: string, logPath: string): void;
@@ -57,6 +37,8 @@ export interface Choice<T extends string> {
   value: T;
   label: string;
   hint?: string;
+  // Consecutive choices sharing a group are listed under its heading.
+  group?: string;
 }
 
 export interface Prompts {
@@ -71,7 +53,8 @@ export interface Logger {
   error(message: string): void;
   success(message: string): void;
   message(message: string): void;
-  spinner(message: string): { stop(message: string): void };
+  step(message: string): void;
+  spinner(message: string): { stop(message: string): void; clear(): void };
 }
 
 export interface FsProbe {
@@ -87,6 +70,7 @@ export interface GitProbe {
 }
 
 export interface Effects {
+  agent: Agent;
   proc: ProcessRunner;
   prompts: Prompts;
   notify(title: string, message: string): Promise<void>;

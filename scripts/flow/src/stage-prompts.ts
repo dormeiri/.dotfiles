@@ -1,12 +1,19 @@
+import { type Iteration, linkSpecCommand, taskUrl } from "./port.ts";
 import type { CompanionStage } from "./state.ts";
-import { taskUrl } from "./task.ts";
 
 function taskLine(taskId: string): string {
   return `Task: ${taskId} (${taskUrl(taskId)})`;
 }
 
-export function createTaskPrompt(context: string): string {
-  return `/create-task ${context}`;
+export function createTaskPrompt(context: string, iteration?: Iteration): string {
+  return [
+    `/create-task ${context}`,
+    "",
+    "Assign the task to me.",
+    ...(iteration
+      ? [`Iteration: ${iteration.identifier} (${iteration.title}), the team's current iteration.`]
+      : []),
+  ].join("\n");
 }
 
 export function describeTaskPrompt(taskId: string): string {
@@ -39,10 +46,6 @@ export function researchPrompt(input: {
     `Save the findings to ${input.researchPath}`,
     adrLine(input.worktree),
   ].join("\n");
-}
-
-export function linkSpecCommand(taskId: string, specPath: string): string {
-  return `port api call --method PATCH /blueprints/task/entities/${taskId} --data "$(jq -n --rawfile spec '${specPath}' '{properties: {spec: $spec}}')"`;
 }
 
 interface SpecInput {
@@ -84,6 +87,13 @@ export function afkSpecPrompt(input: SpecInput): string {
   ].join("\n");
 }
 
+function openPrLines(links: string): string[] {
+  return [
+    "When the work is committed, push the branch and open a draft PR with `gh pr create --draft`, writing its body with the /pr skill.",
+    `Link ${links} in the PR body.`,
+  ];
+}
+
 export function implementPrompt(input: {
   taskId: string;
   specPath: string;
@@ -95,8 +105,7 @@ export function implementPrompt(input: {
     taskLine(input.taskId),
     ...(input.researchPath ? [`Research: ${input.researchPath}`] : []),
     "",
-    "When the work is committed, push the branch and open a draft PR with `gh pr create --draft`.",
-    `Link the task (${taskUrl(input.taskId)}) in the PR description.`,
+    ...openPrLines(`the task (${taskUrl(input.taskId)})`),
   ].join("\n");
 }
 
@@ -162,8 +171,9 @@ export function companionPrompt(stage: CompanionStage, input: CompanionContext):
     ...(input.implWorktree ? [`Implementation worktree (read-only): ${input.implWorktree}`] : []),
     "",
     "If nothing here needs to change, tell me and stop.",
-    "When the work is committed, push the branch and open a draft PR with `gh pr create --draft`.",
-    `Link the task (${taskUrl(input.taskId)})${input.prUrl ? " and the implementation PR" : ""} in the PR description.`,
+    ...openPrLines(
+      `the task (${taskUrl(input.taskId)})${input.prUrl ? " and the implementation PR" : ""}`,
+    ),
   ].join("\n");
 }
 
@@ -186,6 +196,11 @@ export function freeSessionPrompt(input: TaskContext): string {
     "",
     "This is context for a session about the task. Don't start working yet; reply briefly and wait for what I ask.",
   ].join("\n");
+}
+
+// Runs in the task's worktree.
+export function rebasePrompt(input: TaskContext): string {
+  return ["/rebase-pr", "", ...contextLines(input)].join("\n");
 }
 
 // Runs in the task's worktree.

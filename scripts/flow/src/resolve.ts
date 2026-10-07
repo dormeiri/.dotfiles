@@ -1,8 +1,5 @@
+import { taskIdFromBranch } from "./port.ts";
 import type { TaskState } from "./state.ts";
-
-export function taskIdFromBranch(branch: string | undefined): string | undefined {
-  return branch?.match(/^(task_[^/]+)\//)?.[1];
-}
 
 export type Resolution =
   | { kind: "found"; taskId: string }

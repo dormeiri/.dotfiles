@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { AGENT_SETTINGS, type AgentSettings } from "./agent-settings.ts";
 import type { CompanionStage } from "./state.ts";
 
 export interface Config {
@@ -8,6 +9,9 @@ export interface Config {
   worktreesDir: string;
   pullMiddlewaresScript: string;
   stateDir: string;
+  // The Port team whose current iteration new tasks go into.
+  portTeam: string;
+  agents: AgentSettings;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -21,5 +25,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     worktreesDir: join(home, "dev/worktrees"),
     pullMiddlewaresScript: join(home, "dev/my_scripts/pull-middlewares.sh"),
     stateDir: env.FLOW_STATE_DIR ?? join(env.XDG_STATE_HOME ?? join(home, ".local/state"), "flow"),
+    portTeam: env.FLOW_PORT_TEAM ?? "workflows_team",
+    agents: AGENT_SETTINGS,
   };
 }

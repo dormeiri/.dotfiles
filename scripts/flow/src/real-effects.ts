@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { autocomplete, confirm, isCancel, log, select, spinner } from "@clack/prompts";
-import { z } from "zod";
 import type { Config } from "./config.ts";
 import type {
   Choice,
@@ -14,83 +13,29 @@ import type {
   GitProbe,
   Logger,
   ProcessRunner,
-  ProcResult,
   Prompts,
 } from "./effects.ts";
+import { groupedSelect } from "./grouped-select.ts";
+import { realAgent } from "./harness/router.ts";
+import { entitySearchPath, IN_PROGRESS_PATCH, parsePortTask, taskEntityPath } from "./port.ts";
+import { PR_VIEW_FIELDS, parsePrView } from "./pr.ts";
+import { capture, failure, foreground } from "./spawn.ts";
 import { fileStore, pathExists } from "./store.ts";
 
 const RUNNER_PATH = fileURLToPath(new URL("./setup-runner.ts", import.meta.url));
-
-async function capture(cmd: string[], cwd?: string): Promise<ProcResult> {
-  const proc = Bun.spawn(cmd, { cwd, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  return { exitCode, stdout, stderr };
-}
-
-// Ctrl-C in an interactive child also reaches flow (same process group); flow has to survive it
-// to run the stage's completion check once the child exits.
-async function withSigintIgnored<T>(run: () => Promise<T>): Promise<T> {
-  const ignore = () => {};
-  process.on("SIGINT", ignore);
-  try {
-    return await run();
-  } finally {
-    process.off("SIGINT", ignore);
-  }
-}
-
-function foreground(
-  cmd: string[],
-  opts: { cwd?: string; env?: Record<string, string | undefined> } = {},
-) {
-  return withSigintIgnored(
-    () => Bun.spawn(cmd, { ...opts, stdio: ["inherit", "inherit", "inherit"] }).exited,
-  );
-}
-
-function failure(result: ProcResult): Error {
-  return new Error(result.stderr.trim() || result.stdout.trim());
-}
-
-const portEntitySchema = z.object({
-  title: z.string().nullish(),
-  properties: z
-    .object({ description: z.string().nullish(), branch_name: z.string().nullish() })
-    .nullish(),
-});
+// Task lists wait on these, so a hanging gh must not hang flow.
+const PR_STATUS_TIMEOUT_MS = 10_000;
 
 function processRunner(): ProcessRunner {
   return {
-    claudeHeadless({ cwd, prompt, allowedTools, permissionMode, sessionId, addDirs = [] }) {
-      const args = ["claude", "-p", prompt, "--output-format", "json"];
-      args.push("--permission-mode", permissionMode ?? "dontAsk");
-      if (allowedTools?.length) args.push("--allowedTools", allowedTools.join(","));
-      if (sessionId) args.push("--session-id", sessionId);
-      for (const dir of addDirs) args.push("--add-dir", dir);
-      return capture(args, cwd);
-    },
-
-    async claudeInteractive({ cwd, session, permissionMode, addDirs }) {
-      const args = ["claude"];
-      if (permissionMode) args.push("--permission-mode", permissionMode);
-      for (const dir of addDirs) args.push("--add-dir", dir);
-      if (session.kind === "resume") args.push("--resume", session.id);
-      else args.push("--session-id", session.id, session.prompt);
-      await foreground(args, { cwd });
-    },
-
-    async searchPortTasks(query) {
+    async searchPortEntities(blueprint, query) {
       const result = await capture([
         "port",
         "api",
         "call",
         "--method",
         "POST",
-        "/blueprints/task/entities/search",
+        entitySearchPath(blueprint),
         "--data",
         JSON.stringify(query),
       ]);
@@ -101,12 +46,7 @@ function processRunner(): ProcessRunner {
     async getPortTask(taskId) {
       const result = await capture(["port", "api", "entities", "get", "task", taskId]);
       if (result.exitCode !== 0) throw failure(result);
-      const entity = portEntitySchema.parse(JSON.parse(result.stdout));
-      return {
-        title: entity.title ?? taskId,
-        description: entity.properties?.description ?? "",
-        branch: entity.properties?.branch_name || undefined,
-      };
+      return parsePortTask(taskId, JSON.parse(result.stdout));
     },
 
     async markPortTaskInProgress(taskId) {
@@ -116,9 +56,9 @@ function processRunner(): ProcessRunner {
         "call",
         "--method",
         "PATCH",
-        `/blueprints/task/entities/${taskId}`,
+        taskEntityPath(taskId),
         "--data",
-        JSON.stringify({ properties: { status: "In progress" } }),
+        JSON.stringify(IN_PROGRESS_PATCH),
       ]);
       if (result.exitCode !== 0) throw failure(result);
     },
@@ -149,6 +89,17 @@ function processRunner(): ProcessRunner {
     async prUrl(cwd) {
       const result = await capture(["gh", "pr", "view", "--json", "url", "--jq", ".url"], cwd);
       return (result.exitCode === 0 && result.stdout.trim()) || undefined;
+    },
+
+    async prStatus(ref, cwd) {
+      const cmd = ["gh", "pr", "view", ref, "--json", PR_VIEW_FIELDS];
+      const result = await capture(cmd, cwd, PR_STATUS_TIMEOUT_MS);
+      if (result.exitCode !== 0) return undefined;
+      try {
+        return parsePrView(JSON.parse(result.stdout));
+      } catch {
+        return undefined;
+      }
     },
 
     async openUrl(url) {
@@ -209,6 +160,8 @@ const clackPrompts: Prompts = {
     return isCancel(answer) ? undefined : (answer as T);
   },
   async filterSelect<T extends string>(message: string, choices: Choice<T>[]) {
+    if (choices.some((choice) => choice.group !== undefined))
+      return groupedSelect(message, choices);
     const answer = await autocomplete<string>({
       message,
       options: choices,
@@ -224,10 +177,11 @@ const clackLogger: Logger = {
   error: (message) => log.error(message),
   success: (message) => log.success(message),
   message: (message) => log.message(message),
+  step: (message) => log.step(message),
   spinner(message) {
     const s = spinner();
     s.start(message);
-    return { stop: (done) => s.stop(done) };
+    return { stop: (done) => s.stop(done), clear: () => s.clear() };
   },
 };
 
@@ -281,6 +235,7 @@ async function changeDir(path: string): Promise<boolean> {
 
 export function realEffects(config: Config): Effects {
   return {
+    agent: realAgent(config.agents),
     proc: processRunner(),
     prompts: clackPrompts,
     notify,

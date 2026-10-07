@@ -5,6 +5,7 @@
     "": {
       "name": "flow",
       "dependencies": {
+        "@clack/core": "^1.5.1",
         "@clack/prompts": "^1.8.1",
         "commander": "^15.0.0",
         "zod": "^4.6.5",

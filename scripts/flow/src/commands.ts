@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import { runAfk } from "./afk.ts";
-import { type Context, fetchPortTask, loadTask } from "./context.ts";
+import { type Context, loadTask } from "./context.ts";
 import type { Choice } from "./effects.ts";
 import { errorMessage } from "./errors.ts";
 import {
@@ -9,15 +9,22 @@ import {
   runDescriptionSession,
   runFreeSession,
   runFrom,
+  runRebaseSession,
 } from "./guide.ts";
-import { headlessResultText, parseTaskIdMarker } from "./marker.ts";
+import { parseTaskIdMarker } from "./marker.ts";
 import {
+  currentIterationQuery,
+  fetchPortTask,
+  type Iteration,
   MY_TASKS_QUERY,
   type MyTask,
   myTaskChoice,
+  parseCurrentIteration,
   parseMyTasks,
   sortMyTasks,
-} from "./my-tasks.ts";
+  taskUrl,
+} from "./port.ts";
+import { type PrStage, type PrStatus, prRefs, type TaskPrs } from "./pr.ts";
 import { resolveTask } from "./resolve.ts";
 import { worktreePath } from "./setup.ts";
 import { nextChoices, STAGE_LABELS, setupGate } from "./stage-machine.ts";
@@ -29,18 +36,59 @@ import {
   type Stage,
   type TaskState,
 } from "./state.ts";
-import { describeNext, formatStatus } from "./status.ts";
+import { describeNext, formatStatus, groupByPhase, PHASE_LABELS, taskLabel } from "./status.ts";
 import { notTracked } from "./store.ts";
-import { artifactPaths, taskUrl } from "./task.ts";
+import { artifactPaths } from "./task.ts";
 import { editorResult, intakeTemplate } from "./templates.ts";
-
-// Port MCP is the claude.ai "Port IO" connector; the port-cli skill is the fallback /create-task names.
-export const CREATE_TASK_TOOLS = ["mcp__claude_ai_Port_IO", "Bash(port:*)", "Skill(port-cli)"];
 
 const NO_TASKS = "No tasks in flight. Start one with `flow new`.";
 
-function taskChoice(task: TaskState): Choice<string> {
-  return { value: task.taskId, label: `${task.taskId} · ${task.title}`, hint: describeNext(task) };
+// gh is slow, so every PR is looked up at once; ones it can't find are left out.
+async function fetchPrs(
+  ctx: Context,
+  tasks: TaskState[],
+  stages: readonly PrStage[],
+): Promise<Map<string, TaskPrs>> {
+  const { fx, config } = ctx;
+  const lookups = tasks.flatMap((task) =>
+    prRefs(task, stages).map(([stage, ref]) => ({ taskId: task.taskId, stage, ref })),
+  );
+  const prs = new Map<string, TaskPrs>(tasks.map((task) => [task.taskId, {}]));
+  if (lookups.length === 0) return prs;
+  const spinner = fx.log.spinner("Checking PRs…");
+  const statuses = await Promise.all(
+    lookups.map(({ ref }) => fx.proc.prStatus(ref, config.mainRepo)),
+  );
+  spinner.clear();
+  lookups.forEach(({ taskId, stage }, i) => {
+    const status = statuses[i];
+    const found = prs.get(taskId);
+    if (status && found) found[stage] = status;
+  });
+  return prs;
+}
+
+async function implPr(ctx: Context, task: TaskState): Promise<PrStatus | undefined> {
+  return (await fetchPrs(ctx, [task], ["impl"])).get(task.taskId)?.impl;
+}
+
+async function pickTask(
+  ctx: Context,
+  message: string,
+  tasks: TaskState[],
+  prs: Map<string, TaskPrs>,
+): Promise<string | undefined> {
+  const choices = groupByPhase(tasks).flatMap(({ phase, tasks }) =>
+    tasks.map(
+      (task): Choice<string> => ({
+        value: task.taskId,
+        label: taskLabel(task, prs.get(task.taskId)?.impl),
+        hint: describeNext(task),
+        group: PHASE_LABELS[phase],
+      }),
+    ),
+  );
+  return ctx.fx.prompts.filterSelect(message, choices);
 }
 
 async function inFlight(ctx: Context): Promise<TaskState[]> {
@@ -63,8 +111,10 @@ async function resolveTaskId(
     case "none":
       ctx.fx.log.info(NO_TASKS);
       return undefined;
-    case "pick":
-      return ctx.fx.prompts.filterSelect("Which task?", resolution.candidates.map(taskChoice));
+    case "pick": {
+      const { candidates } = resolution;
+      return pickTask(ctx, "Which task?", candidates, await fetchPrs(ctx, candidates, ["impl"]));
+    }
   }
 }
 
@@ -72,7 +122,7 @@ async function pickMyTask(ctx: Context, message: string): Promise<string | undef
   const { fx } = ctx;
   let tasks: MyTask[];
   try {
-    tasks = sortMyTasks(parseMyTasks(await fx.proc.searchPortTasks(MY_TASKS_QUERY)));
+    tasks = sortMyTasks(parseMyTasks(await fx.proc.searchPortEntities("task", MY_TASKS_QUERY)));
   } catch (error) {
     fx.log.error(`Couldn't list your tasks from Port (${errorMessage(error)}).`);
     return undefined;
@@ -110,6 +160,23 @@ async function adoptMyTask(ctx: Context): Promise<string | undefined> {
   return trackTask(ctx, taskId);
 }
 
+async function currentIteration(ctx: Context): Promise<Iteration | undefined> {
+  const { fx, config } = ctx;
+  try {
+    const query = currentIterationQuery(config.portTeam);
+    const iteration = parseCurrentIteration(
+      await fx.proc.searchPortEntities("team_iteration", query),
+    );
+    if (iteration) return iteration;
+    fx.log.warn(`${config.portTeam} has no current iteration, so /create-task picks one.`);
+  } catch (error) {
+    fx.log.warn(
+      `Couldn't find ${config.portTeam}'s current iteration (${errorMessage(error)}), so /create-task picks one.`,
+    );
+  }
+  return undefined;
+}
+
 async function createTask(ctx: Context, input: string | undefined): Promise<string | undefined> {
   const { fx, config } = ctx;
   let context = input?.trim();
@@ -122,17 +189,19 @@ async function createTask(ctx: Context, input: string | undefined): Promise<stri
     return undefined;
   }
 
+  const iteration = await currentIteration(ctx);
   const spinner = fx.log.spinner("Creating the task with /create-task…");
-  const result = await fx.proc.claudeHeadless({
+  const { output } = await fx.agent.headless({
+    purpose: "createTask",
     cwd: config.mainRepo,
-    prompt: createTaskPrompt(context),
-    allowedTools: CREATE_TASK_TOOLS,
+    prompt: createTaskPrompt(context, iteration),
+    access: "port-only",
+    addDirs: [],
   });
-  const output = headlessResultText(result.stdout);
   let taskId = parseTaskIdMarker(output);
   spinner.stop(taskId ? `Created ${taskId}` : "/create-task didn't report a TASK_ID");
   if (!taskId) {
-    fx.log.message(output.trim() || result.stderr.trim() || "(no output)");
+    fx.log.message(output || "(no output)");
     taskId = await pickMyTask(ctx, "Which task did /create-task create?");
     if (!taskId) {
       fx.log.warn("No task picked.");
@@ -163,7 +232,7 @@ export async function newCommand(
   if (!(await loadTask(ctx, taskId)).stages.new.done) {
     if (
       source === "mine" &&
-      (await fx.prompts.confirm("Iterate on the description with Claude (/update-task) first?"))
+      (await fx.prompts.confirm("Iterate on the description with the agent (/update-task) first?"))
     ) {
       await runDescriptionSession(ctx, taskId);
     }
@@ -182,13 +251,26 @@ export async function stageCommand(
   if (taskId) await runFrom(ctx, taskId, stage);
 }
 
-type HomeAction = Stage | "session" | "cd" | "adr" | "open-task" | "open-pr" | "archive" | "later";
+type HomeAction =
+  | Stage
+  | "rebase"
+  | "session"
+  | "cd"
+  | "adr"
+  | "open-task"
+  | "open-pr"
+  | "archive"
+  | "later";
 
-function homeActions(task: TaskState): Choice<HomeAction>[] {
+function homeActions(task: TaskState, pr: PrStatus | undefined): Choice<HomeAction>[] {
   // impl opens the PR, but it can also be opened by hand once the spec is done.
   const mayHavePr = Boolean(task.prUrl) || task.stages.spec.done;
+  const conflicted = pr?.state === "open" && pr.conflicts;
   return [
     ...nextChoices(task).map((stage) => ({ value: stage, label: STAGE_LABELS[stage] })),
+    ...(conflicted
+      ? [{ value: "rebase" as const, label: "Resolve the PR's conflicts (/rebase-pr)" }]
+      : []),
     { value: "session", label: "New session" },
     ...(task.worktreePath ? [{ value: "cd" as const, label: "Go to the worktree" }] : []),
     { value: "adr", label: "Record a decision (ADR)" },
@@ -202,13 +284,32 @@ function homeActions(task: TaskState): Choice<HomeAction>[] {
 export async function homeCommand(ctx: Context): Promise<void> {
   const tasks = await inFlight(ctx);
   if (tasks.length === 0) return;
-  const taskId = await ctx.fx.prompts.filterSelect("Pick up a task", tasks.map(taskChoice));
-  if (!taskId) return;
+  const prs = await fetchPrs(ctx, tasks, ["impl"]);
+  const taskId = await pickTask(ctx, "Pick up a task", tasks, prs);
+  if (taskId) await taskMenu(ctx, taskId, prs.get(taskId)?.impl);
+}
+
+export async function resumeCommand(ctx: Context): Promise<void> {
+  const [latest] = (await inFlight(ctx)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  if (!latest) return;
+  ctx.fx.log.info(`Resuming ${latest.title} (${latest.taskId})`);
+  await taskMenu(ctx, latest.taskId, await implPr(ctx, latest));
+}
+
+async function taskMenu(ctx: Context, taskId: string, initialPr?: PrStatus): Promise<void> {
+  let pr = initialPr;
   // Sessions, opening and a declined archive return to the menu, so the task can still be continued.
   while (true) {
     const task = await loadTask(ctx, taskId);
-    const action = await ctx.fx.prompts.filterSelect(`What next for ${taskId}?`, homeActions(task));
+    const action = await ctx.fx.prompts.filterSelect(
+      `What next for ${taskId}?`,
+      homeActions(task, pr),
+    );
     switch (action) {
+      case "rebase":
+        await runRebaseSession(ctx, taskId);
+        pr = await implPr(ctx, task);
+        break;
       case "session":
         await runFreeSession(ctx, taskId);
         break;
@@ -289,10 +390,20 @@ export async function adrCommand(ctx: Context, explicit: string | undefined): Pr
   if (taskId) await runAdrSession(ctx, taskId);
 }
 
+export async function rebaseCommand(ctx: Context, explicit: string | undefined): Promise<void> {
+  const taskId = await resolveTaskId(ctx, explicit);
+  if (taskId) await runRebaseSession(ctx, taskId);
+}
+
 export async function statusCommand(ctx: Context, explicit: string | undefined): Promise<void> {
+  const { fx } = ctx;
   const tasks = explicit ? [await loadTask(ctx, explicit)] : await inFlight(ctx);
-  for (const task of tasks) {
-    ctx.fx.log.message(formatStatus(task, setupGate(task, ctx.fx.proc.isAlive)));
+  const prs = await fetchPrs(ctx, tasks, ["impl", ...COMPANION_STAGES]);
+  for (const { phase, tasks: inPhase } of groupByPhase(tasks)) {
+    if (!explicit) fx.log.step(PHASE_LABELS[phase]);
+    for (const task of inPhase) {
+      fx.log.message(formatStatus(task, setupGate(task, fx.proc.isAlive), prs.get(task.taskId)));
+    }
   }
 }
 

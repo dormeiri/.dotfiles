@@ -11,11 +11,12 @@ export const STAGES = ["new", "research", "spec", "impl", "review", ...FOLLOW_UP
 export type Stage = (typeof STAGES)[number];
 export type SessionStage = Exclude<Stage, "new">;
 
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 5;
 
 const stageStateSchema = z.object({
   done: z.boolean(),
-  sessionId: z.uuid().optional(),
+  // Opaque to flow; the agent hands it out and resumes it.
+  sessionId: z.string().min(1).optional(),
   // Only companion stages record their PR here; the implementation's PR is the task's prUrl.
   prUrl: z.string().optional(),
 });
@@ -40,6 +41,7 @@ export const taskStateSchema = z.object({
   stages: z.record(z.enum(STAGES), stageStateSchema),
   archived: z.boolean(),
   createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 
 export type TaskState = z.infer<typeof taskStateSchema>;
@@ -60,6 +62,21 @@ const MIGRATIONS: Record<number, Migration> = {
   2: (state) => ({
     ...state,
     stages: { ...(state.stages as Record<string, unknown>), announcement: { done: false } },
+  }),
+  3: (state) => ({ ...state, updatedAt: state.createdAt }),
+  // Session IDs name their harness; every session before v5 was Claude's.
+  4: (state) => ({
+    ...state,
+    stages: Object.fromEntries(
+      Object.entries(state.stages as Record<string, Record<string, unknown>>).map(
+        ([stage, stageState]) => [
+          stage,
+          typeof stageState.sessionId === "string"
+            ? { ...stageState, sessionId: `claude:${stageState.sessionId}` }
+            : stageState,
+        ],
+      ),
+    ),
   }),
 };
 
@@ -111,5 +128,6 @@ export function newTaskState(init: {
     ) as TaskState["stages"],
     archived: false,
     createdAt: init.now.toISOString(),
+    updatedAt: init.now.toISOString(),
   };
 }

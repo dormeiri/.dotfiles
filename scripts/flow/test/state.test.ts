@@ -34,7 +34,7 @@ describe("parseTaskState", () => {
   test("rejects an invalid shape", () => {
     expect(() => parseTaskState({ ...state(), stages: {} })).toThrow(StateError);
     const badSession = state();
-    badSession.stages.spec.sessionId = "not-a-uuid";
+    badSession.stages.spec.sessionId = "";
     expect(() => parseTaskState(badSession)).toThrow(StateError);
   });
 });
@@ -54,6 +54,20 @@ describe("migrate", () => {
     const { announcement: _, ...v2Stages } = state().stages;
     const v2 = { ...JSON.parse(JSON.stringify(state())), version: 2, stages: v2Stages };
     expect(parseTaskState(v2)).toEqual(state());
+  });
+
+  test("v3 gains an updatedAt of its creation time", () => {
+    const { updatedAt: _, ...v3 } = { ...JSON.parse(JSON.stringify(state())), version: 3 };
+    expect(parseTaskState(v3)).toEqual(state());
+  });
+
+  test("v4 session IDs become Claude's", () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    const v4 = { ...JSON.parse(JSON.stringify(state())), version: 4 };
+    v4.stages.spec.sessionId = id;
+    const expected = state();
+    expected.stages.spec.sessionId = `claude:${id}`;
+    expect(parseTaskState(v4)).toEqual(expected);
   });
 
   test("fails for an older version it has no migration for", () => {
@@ -85,6 +99,15 @@ describe("fileStore", () => {
       t.stages.spec.done = true;
     });
     expect((await s.get("task_1"))?.stages.spec.done).toBe(true);
+  });
+
+  test("update stamps updatedAt", async () => {
+    const s = store();
+    await s.create(state());
+    const before = Date.now();
+    await s.update("task_1", () => {});
+    const updatedAt = Date.parse((await s.get("task_1"))?.updatedAt ?? "");
+    expect(updatedAt).toBeGreaterThanOrEqual(before);
   });
 
   test("concurrent updates from separate stores don't undo each other", async () => {
@@ -124,7 +147,7 @@ describe("fileStore", () => {
     const s = store();
     await s.create(state());
     const update = s.update("task_1", (t) => {
-      t.stages.impl.sessionId = "nope";
+      t.stages.impl.sessionId = "";
     });
     await expect(update).rejects.toThrow();
     expect((await s.get("task_1"))?.stages.impl.sessionId).toBe(undefined);

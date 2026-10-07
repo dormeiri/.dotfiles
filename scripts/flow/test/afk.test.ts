@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import type { HeadlessLaunch } from "../src/agent.ts";
 import { newCommand } from "../src/commands.ts";
-import type { HeadlessLaunch } from "../src/effects.ts";
 import { fakeContext, MAIN_REPO } from "./fakes.ts";
 
 const SPEC = `${MAIN_REPO}/.scratch/task_1/spec.md`;
@@ -12,16 +12,17 @@ function afkFake(options: { writesSpec?: boolean; opensPr?: boolean; setupFails?
   const headless: HeadlessLaunch[] = [];
   let prOpened = false;
   const fake = fakeContext({
-    proc: {
-      async claudeHeadless(launch) {
+    agent: {
+      async headless(launch) {
         headless.push(launch);
-        if (launch.prompt.startsWith("/create-task")) {
-          return { exitCode: 0, stdout: JSON.stringify({ result: "TASK_ID: task_1" }), stderr: "" };
-        }
+        if (launch.prompt.startsWith("/create-task"))
+          return { ok: true, output: "TASK_ID: task_1" };
         if (launch.prompt.startsWith("/to-spec") && writesSpec) fake.files.add(SPEC);
         if (launch.prompt.startsWith("/implement") && opensPr) prOpened = true;
-        return { exitCode: 0, stdout: JSON.stringify({ result: "ok" }), stderr: "" };
+        return { ok: true, output: "ok" };
       },
+    },
+    proc: {
       prUrl: async () => (prOpened ? PR : undefined),
     },
     // The background setup finishes while flow waits for it.
@@ -51,13 +52,14 @@ describe("flow new --afk", () => {
       "/implement",
     ]);
     const [, spec, impl] = headless;
-    expect(spec).toMatchObject({ cwd: MAIN_REPO, permissionMode: "auto" });
+    expect(spec).toMatchObject({ purpose: "afkSpec", cwd: MAIN_REPO, access: "auto" });
     expect(spec?.prompt).toContain("Description of task_1");
     expect(spec?.prompt).toContain(`write the spec to ${SPEC}`);
     expect(spec?.prompt).not.toContain("/grill-me");
     expect(impl).toMatchObject({
+      purpose: "afkImpl",
       cwd: WORKTREE,
-      permissionMode: "auto",
+      access: "auto",
       addDirs: [`${MAIN_REPO}/.scratch/task_1`],
     });
 

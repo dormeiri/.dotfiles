@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
-import { type Context, loadTask, refreshTaskDetails } from "./context.ts";
-import type { ClaudeLaunch } from "./effects.ts";
+import type { AgentLaunch } from "./agent.ts";
+import { type Context, loadTask } from "./context.ts";
+import { refreshTaskDetails, taskUrl } from "./port.ts";
 import {
   existingWorktree,
   mainRepoWarning,
@@ -14,10 +14,10 @@ import {
   adrPrompt,
   describeTaskPrompt,
   freeSessionPrompt,
+  rebasePrompt,
   type TaskContext,
 } from "./stage-prompts.ts";
 import type { CompanionStage, SessionStage, Stage, TaskState } from "./state.ts";
-import { taskUrl } from "./task.ts";
 import { adrTemplate, editorResult } from "./templates.ts";
 
 const SETUP_POLL_MS = 2000;
@@ -112,7 +112,7 @@ async function runSession(ctx: Context, taskId: string, stage: SessionStage): Pr
         task.stages[stage].sessionId = session.id;
       });
     }
-    await ctx.fx.proc.claudeInteractive(launch);
+    await ctx.fx.agent.interactive(launch);
     const outcome = await finishSession({ ctx, task: await loadTask(ctx, taskId), stage, cwd });
     if (outcome !== "retry") return outcome === "done";
   }
@@ -148,10 +148,26 @@ async function sideSession(ctx: Context, taskId: string): Promise<SideSession> {
   return { task, cwd, inWorktree, context };
 }
 
-function launchSideSession(ctx: Context, side: SideSession, prompt: string): Promise<void> {
-  return ctx.fx.proc.claudeInteractive({
+async function launchFresh(
+  ctx: Context,
+  launch: Omit<AgentLaunch, "session" | "access"> & { prompt: string },
+): Promise<void> {
+  const { agent } = ctx.fx;
+  const { prompt, ...rest } = launch;
+  const id = await agent.newSession(launch.purpose);
+  await agent.interactive({ ...rest, access: "ask", session: { kind: "fresh", id, prompt } });
+}
+
+function launchSideSession(
+  ctx: Context,
+  side: SideSession,
+  purpose: "session" | "adr" | "rebase",
+  prompt: string,
+): Promise<void> {
+  return launchFresh(ctx, {
+    purpose,
     cwd: side.cwd,
-    session: { kind: "fresh", id: randomUUID(), prompt },
+    prompt,
     // Research and spec live in the main repo's .scratch/, outside the worktree.
     addDirs: side.inWorktree ? [dirname(side.task.specPath)] : [],
   });
@@ -159,9 +175,10 @@ function launchSideSession(ctx: Context, side: SideSession, prompt: string): Pro
 
 // Runs before verification, so there's no worktree yet; the description lives in Port.
 export async function runDescriptionSession(ctx: Context, taskId: string): Promise<void> {
-  await ctx.fx.proc.claudeInteractive({
+  await launchFresh(ctx, {
+    purpose: "describeTask",
     cwd: ctx.config.mainRepo,
-    session: { kind: "fresh", id: randomUUID(), prompt: describeTaskPrompt(taskId) },
+    prompt: describeTaskPrompt(taskId),
     addDirs: [],
   });
 }
@@ -169,7 +186,7 @@ export async function runDescriptionSession(ctx: Context, taskId: string): Promi
 // A session outside the stages: no stage prompt, no completion check, nothing marked done.
 export async function runFreeSession(ctx: Context, taskId: string): Promise<void> {
   const side = await sideSession(ctx, taskId);
-  await launchSideSession(ctx, side, freeSessionPrompt(side.context));
+  await launchSideSession(ctx, side, "session", freeSessionPrompt(side.context));
 }
 
 // Optional at any stage, so like a free session nothing is marked done. The ADR belongs on the
@@ -184,7 +201,14 @@ export async function runAdrSession(ctx: Context, taskId: string): Promise<void>
   }
   if (!(await ensureWorktree(ctx, taskId))) return;
   const side = await sideSession(ctx, taskId);
-  await launchSideSession(ctx, side, adrPrompt({ ...side.context, decision }));
+  await launchSideSession(ctx, side, "adr", adrPrompt({ ...side.context, decision }));
+}
+
+// Rebasing rewrites the task's branch, so like an ADR it waits for the worktree.
+export async function runRebaseSession(ctx: Context, taskId: string): Promise<void> {
+  if (!(await ensureWorktree(ctx, taskId))) return;
+  const side = await sideSession(ctx, taskId);
+  await launchSideSession(ctx, side, "rebase", rebasePrompt(side.context));
 }
 
 async function sessionCwd(
@@ -303,12 +327,13 @@ async function stageAddDirs(ctx: Context, task: TaskState, stage: SessionStage):
   }
 }
 
-async function planLaunch(session: Session): Promise<ClaudeLaunch | undefined> {
+async function planLaunch(session: Session): Promise<AgentLaunch | undefined> {
   const { ctx, task, stage, cwd } = session;
   const spec = SESSION_STAGES[stage];
   const options = {
+    purpose: stage,
     cwd,
-    permissionMode: spec.permissionMode,
+    access: spec.access ?? "ask",
     addDirs: await stageAddDirs(ctx, task, stage),
   };
   const previous = task.stages[stage].sessionId;
@@ -321,7 +346,9 @@ async function planLaunch(session: Session): Promise<ClaudeLaunch | undefined> {
     if (choice === "resume") return { ...options, session: { kind: "resume", id: previous } };
   }
   const prompt = await spec.prompt(session);
-  return prompt ? { ...options, session: { kind: "fresh", id: randomUUID(), prompt } } : undefined;
+  if (!prompt) return undefined;
+  const id = await ctx.fx.agent.newSession(stage);
+  return { ...options, session: { kind: "fresh", id, prompt } };
 }
 
 type SessionOutcome = "done" | "retry" | "leave";

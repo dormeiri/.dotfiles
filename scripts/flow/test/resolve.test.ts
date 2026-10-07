@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveTask, taskIdFromBranch } from "../src/resolve.ts";
+import { resolveTask } from "../src/resolve.ts";
 import { newTaskState, type TaskState } from "../src/state.ts";
 
 function task(taskId: string, archived = false): TaskState {
@@ -12,18 +12,6 @@ function task(taskId: string, archived = false): TaskState {
   });
   return { ...state, archived };
 }
-
-describe("taskIdFromBranch", () => {
-  test("takes everything before the slash of a task branch", () => {
-    expect(taskIdFromBranch("task_abc123/fix-login")).toBe("task_abc123");
-  });
-
-  test("ignores non-task branches", () => {
-    expect(taskIdFromBranch("main")).toBe(undefined);
-    expect(taskIdFromBranch("feature/foo")).toBe(undefined);
-    expect(taskIdFromBranch(undefined)).toBe(undefined);
-  });
-});
 
 describe("resolveTask", () => {
   const tasks = [task("task_a"), task("task_b"), task("task_old", true)];

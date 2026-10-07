@@ -1,9 +1,8 @@
-import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
-import { type Context, loadTask, refreshTaskDetails } from "./context.ts";
-import type { HeadlessLaunch } from "./effects.ts";
+import type { HeadlessLaunch } from "./agent.ts";
+import { type Context, loadTask } from "./context.ts";
 import { startSetup } from "./guide.ts";
-import { headlessResultText } from "./marker.ts";
+import { refreshTaskDetails } from "./port.ts";
 import { existingWorktree, mainRepoWarning } from "./session-stages.ts";
 import { notificationTitle } from "./setup.ts";
 import { type SetupGate, setupGate } from "./stage-machine.ts";
@@ -46,9 +45,10 @@ async function afkSpec(ctx: Context, taskId: string): Promise<boolean> {
   const worktree = await existingWorktree(ctx, task);
   const prompt = afkSpecPrompt({ taskId, task: text, specPath: task.specPath, worktree });
   await runHeadless(ctx, taskId, "spec", {
+    purpose: "afkSpec",
     cwd: config.mainRepo,
     prompt,
-    permissionMode: "auto",
+    access: "auto",
     addDirs: worktree ? [worktree] : [],
   });
   if (!(await fx.fs.exists(task.specPath))) {
@@ -76,9 +76,10 @@ async function afkImpl(ctx: Context, taskId: string): Promise<boolean> {
     researchPath: (await fx.fs.exists(task.researchPath)) ? task.researchPath : undefined,
   });
   await runHeadless(ctx, taskId, "impl", {
+    purpose: "afkImpl",
     cwd,
     prompt,
-    permissionMode: "auto",
+    access: "auto",
     // Research and spec live in the main repo's .scratch/, outside the worktree.
     addDirs: [dirname(task.specPath)],
   });
@@ -96,18 +97,17 @@ async function runHeadless(
   ctx: Context,
   taskId: string,
   stage: SessionStage,
-  launch: HeadlessLaunch,
+  launch: Omit<HeadlessLaunch, "sessionId">,
 ): Promise<void> {
   const { fx } = ctx;
-  const sessionId = randomUUID();
+  const sessionId = await fx.agent.newSession(launch.purpose);
   await fx.store.update(taskId, (t) => {
     t.stages[stage].sessionId = sessionId;
   });
   const spinner = fx.log.spinner(`Running ${stage} headlessly (session ${sessionId})…`);
-  const result = await fx.proc.claudeHeadless({ ...launch, sessionId });
-  spinner.stop(result.exitCode === 0 ? `${stage} session ended` : `${stage} session failed`);
-  const output = headlessResultText(result.stdout).trim() || result.stderr.trim();
-  if (output) fx.log.message(output);
+  const result = await fx.agent.headless({ ...launch, sessionId });
+  spinner.stop(result.ok ? `${stage} session ended` : `${stage} session failed`);
+  if (result.output) fx.log.message(result.output);
 }
 
 async function waitForSetup(ctx: Context, taskId: string): Promise<SetupGate> {

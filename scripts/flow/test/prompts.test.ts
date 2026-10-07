@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { linkSpecCommand } from "../src/port.ts";
 import {
   afkSpecPrompt,
   createTaskPrompt,
   grillPrompt,
   implementPrompt,
-  linkSpecCommand,
   researchPrompt,
   reviewPrompt,
 } from "../src/stage-prompts.ts";
@@ -21,8 +21,15 @@ const SPEC = "/repo/.scratch/task_1/spec.md";
 const RESEARCH = "/repo/.scratch/task_1/research.md";
 
 describe("stage prompts", () => {
-  test("create-task passes the context to the skill", () => {
-    expect(createTaskPrompt("Login breaks on Safari")).toBe("/create-task Login breaks on Safari");
+  test("create-task passes the context to the skill and assigns the task to me", () => {
+    expect(createTaskPrompt("Login breaks on Safari")).toBe(
+      "/create-task Login breaks on Safari\n\nAssign the task to me.",
+    );
+  });
+
+  test("create-task names the iteration when it's known", () => {
+    const prompt = createTaskPrompt("idea", { identifier: "team_iteration_1", title: "Oct 26" });
+    expect(prompt).toEndWith("Iteration: team_iteration_1 (Oct 26), the team's current iteration.");
   });
 
   test("research starts with the skill and names the task and output path", () => {
@@ -62,10 +69,11 @@ describe("stage prompts", () => {
     );
   });
 
-  test("implement references the spec and ends with a draft PR", () => {
+  test("implement references the spec and ends with a draft PR written with /pr", () => {
     const prompt = implementPrompt({ taskId: "task_1", specPath: SPEC });
     expect(prompt.startsWith(`/implement ${SPEC}`)).toBe(true);
     expect(prompt).toContain("gh pr create --draft");
+    expect(prompt).toContain("the /pr skill");
     expect(prompt).toContain(TASK_URL);
     expect(prompt).not.toContain("Research:");
   });

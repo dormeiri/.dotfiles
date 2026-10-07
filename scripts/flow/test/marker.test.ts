@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { headlessResultText, parseTaskIdMarker } from "../src/marker.ts";
+import { parseTaskIdMarker } from "../src/marker.ts";
 
 describe("parseTaskIdMarker", () => {
   test("reads the ID from a marker line", () => {
@@ -25,16 +25,5 @@ describe("parseTaskIdMarker", () => {
     expect(parseTaskIdMarker("TASK_ID: task_first\nmore text\nTASK_ID: task_last\n")).toBe(
       "task_last",
     );
-  });
-});
-
-describe("headlessResultText", () => {
-  test("unwraps the result of --output-format json", () => {
-    const stdout = JSON.stringify({ type: "result", result: "hello\nTASK_ID: task_1" });
-    expect(headlessResultText(stdout)).toBe("hello\nTASK_ID: task_1");
-  });
-
-  test("falls back to the raw output when it isn't JSON", () => {
-    expect(headlessResultText("Error: not logged in")).toBe("Error: not logged in");
   });
 });

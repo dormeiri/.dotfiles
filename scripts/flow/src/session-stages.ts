@@ -1,4 +1,6 @@
-import { type Context, refreshTaskDetails } from "./context.ts";
+import type { Access } from "./agent.ts";
+import type { Context } from "./context.ts";
+import { refreshTaskDetails } from "./port.ts";
 import { worktreePath } from "./setup.ts";
 import {
   announcementPrompt,
@@ -25,7 +27,8 @@ export type Workspace = "main-repo" | "worktree" | "companion";
 
 interface SessionStageSpec {
   workspace: Workspace;
-  permissionMode?: "auto";
+  // Without it, the agent asks before acting.
+  access?: Access;
   prompt(session: Session): Promise<string | undefined>;
   // Stages without an artifact to check leave completion to the user.
   findOutput?(session: Session): Promise<StageOutput>;
@@ -63,7 +66,7 @@ async function prOutput({ ctx, cwd }: Session): Promise<StageOutput> {
 function companionStage(stage: CompanionStage): SessionStageSpec {
   return {
     workspace: "companion",
-    permissionMode: "auto",
+    access: "auto",
     async prompt({ ctx, task }) {
       return companionPrompt(stage, {
         taskId: task.taskId,
@@ -121,7 +124,7 @@ export const SESSION_STAGES: Record<SessionStage, SessionStageSpec> = {
   },
   impl: {
     workspace: "worktree",
-    permissionMode: "auto",
+    access: "auto",
     async prompt(session) {
       const { ctx, task } = session;
       const { specPath } = task;

@@ -9,6 +9,8 @@ import {
   newCommand,
   openCommand,
   prCommand,
+  rebaseCommand,
+  resumeCommand,
   sessionCommand,
   stageCommand,
   statusCommand,
@@ -56,8 +58,13 @@ for (const [stage, description] of stages) {
 }
 
 program
+  .command("resume")
+  .description("Show the menu of the most recently updated in-flight task")
+  .action(() => resumeCommand(ctx));
+
+program
   .command("session")
-  .description("Start a new Claude session for the task, outside the stages")
+  .description("Start a new agent session for the task, outside the stages")
   .argument("[id]", "task ID (inferred from the branch, else picked)")
   .action((id?: string) => sessionCommand(ctx, id));
 
@@ -72,6 +79,12 @@ program
   .description("Record a significant decision for the task as an ADR, at any stage")
   .argument("[id]", "task ID (inferred from the branch, else picked)")
   .action((id?: string) => adrCommand(ctx, id));
+
+program
+  .command("rebase")
+  .description("Rebase the task's PR onto main and resolve its conflicts with /rebase-pr")
+  .argument("[id]", "task ID (inferred from the branch, else picked)")
+  .action((id?: string) => rebaseCommand(ctx, id));
 
 program
   .command("status")

@@ -1,6 +1,7 @@
 import { FOLLOW_UP_STAGES, type Stage, type TaskState } from "./state.ts";
 
-const REQUIRED: Stage[] = ["new", "spec", "impl", "review"];
+const REQUIRED = ["new", "spec", "impl", "review"] as const satisfies Stage[];
+export type RequiredStage = (typeof REQUIRED)[number];
 
 export const STAGE_LABELS: Record<Stage, string> = {
   new: "Verify task & set up worktree",
@@ -13,7 +14,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
   announcement: "Send product announcement (optional)",
 };
 
-export function nextStage(task: TaskState): Stage | undefined {
+export function nextStage(task: TaskState): RequiredStage | undefined {
   return REQUIRED.find((stage) => !task.stages[stage].done);
 }
 
