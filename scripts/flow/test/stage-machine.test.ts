@@ -54,10 +54,12 @@ describe("nextStage / nextChoices", () => {
     expect(nextChoices(t)).toEqual(["review", "docs", "terraform", "announcement"]);
     t.stages.review.done = true;
     expect(nextStage(t)).toBe(undefined);
-    expect(nextChoices(t)).toEqual(["docs", "terraform", "announcement"]);
+    expect(nextChoices(t)).toEqual(["done", "docs", "terraform", "announcement"]);
     t.stages.docs.done = true;
     t.stages.terraform.done = true;
     t.stages.announcement.done = true;
+    expect(nextChoices(t)).toEqual(["done"]);
+    t.stages.done.done = true;
     expect(nextChoices(t)).toEqual([]);
   });
 

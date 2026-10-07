@@ -5,10 +5,12 @@ import {
   adrCommand,
   archiveCommand,
   cdCommand,
+  doneCommand,
   homeCommand,
   newCommand,
   openCommand,
   prCommand,
+  pruneCommand,
   rebaseCommand,
   resumeCommand,
   sessionCommand,
@@ -109,6 +111,18 @@ program
   .description("Remove the task from the in-flight list")
   .argument("[id]", "task ID (inferred from the branch, else picked)")
   .action((id?: string) => archiveCommand(ctx, id));
+
+program
+  .command("done")
+  .description("Set the task to Done in Port and archive it")
+  .argument("[id]", "task ID (inferred from the branch, else picked)")
+  .action((id?: string) => doneCommand(ctx, id));
+
+program
+  .command("prune")
+  .description("Remove the worktrees of archived tasks (refuses ones with uncommitted changes)")
+  .option("--force", "also remove worktrees with uncommitted changes, discarding them")
+  .action((opts: { force?: boolean }) => pruneCommand(ctx, { force: opts.force }));
 
 try {
   await program.parseAsync();

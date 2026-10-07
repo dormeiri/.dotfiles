@@ -5,6 +5,7 @@ import type { Choice } from "./effects.ts";
 import { errorMessage } from "./errors.ts";
 import {
   chooseNext,
+  completeTask,
   runAdrSession,
   runDescriptionSession,
   runFreeSession,
@@ -345,19 +346,30 @@ export async function sessionCommand(ctx: Context, explicit: string | undefined)
   if (taskId) await runFreeSession(ctx, taskId);
 }
 
-async function worktreeChoices(ctx: Context, task: TaskState): Promise<Choice<string>[]> {
+interface Worktree {
+  repo: string;
+  dir: string;
+}
+
+// The main repo's worktree is recorded by the setup; companion ones are found by their path.
+async function taskWorktrees(ctx: Context, task: TaskState): Promise<Worktree[]> {
   const { fx, config } = ctx;
-  const choices = task.worktreePath
-    ? [{ value: task.worktreePath, label: basename(config.mainRepo) }]
-    : [];
+  const worktrees = task.worktreePath ? [{ repo: config.mainRepo, dir: task.worktreePath }] : [];
   const { branch } = task;
-  if (!branch) return choices;
+  if (!branch) return worktrees;
   for (const stage of COMPANION_STAGES) {
     const repo = config.companionRepos[stage];
     const dir = worktreePath(config, branch, repo);
-    if (await fx.fs.exists(dir)) choices.push({ value: dir, label: basename(repo) });
+    if (await fx.fs.exists(dir)) worktrees.push({ repo, dir });
   }
-  return choices;
+  return worktrees;
+}
+
+async function worktreeChoices(ctx: Context, task: TaskState): Promise<Choice<string>[]> {
+  return (await taskWorktrees(ctx, task)).map(({ repo, dir }) => ({
+    value: dir,
+    label: basename(repo),
+  }));
 }
 
 // True when the shell will cd once flow exits.
@@ -455,4 +467,49 @@ async function archiveTask(ctx: Context, taskId: string): Promise<void> {
 export async function archiveCommand(ctx: Context, explicit: string | undefined): Promise<void> {
   const taskId = await resolveTaskId(ctx, explicit);
   if (taskId) await archiveTask(ctx, taskId);
+}
+
+export async function doneCommand(ctx: Context, explicit: string | undefined): Promise<void> {
+  const taskId = await resolveTaskId(ctx, explicit);
+  if (taskId) await completeTask(ctx, taskId);
+}
+
+export async function pruneCommand(
+  ctx: Context,
+  { force = false }: { force?: boolean } = {},
+): Promise<void> {
+  const { fx } = ctx;
+  const archived = (await fx.store.list()).filter((task) => task.archived);
+  const found: (Worktree & { taskId: string })[] = [];
+  for (const task of archived) {
+    for (const worktree of await taskWorktrees(ctx, task)) {
+      if (await fx.fs.exists(worktree.dir)) found.push({ ...worktree, taskId: task.taskId });
+      else await forgetWorktree(ctx, task.taskId, worktree.dir);
+    }
+  }
+  if (found.length === 0) {
+    fx.log.info("No archived task has a worktree.");
+    return;
+  }
+  fx.log.message(found.map(({ taskId, dir }) => `${taskId}  ${dir}`).join("\n"));
+  const count = found.length === 1 ? "this worktree" : `these ${found.length} worktrees`;
+  const discarded = force ? ", but their uncommitted changes are lost" : "";
+  if (!(await fx.prompts.confirm(`Remove ${count}? Their branches are kept${discarded}.`))) return;
+  for (const { taskId, repo, dir } of found) {
+    const spinner = fx.log.spinner(`Removing ${dir}…`);
+    const error = await fx.git.removeWorktree(repo, dir, force);
+    if (error) {
+      spinner.stop(`Kept ${dir}`);
+      fx.log.warn(error);
+      continue;
+    }
+    spinner.stop(`Removed ${dir}`);
+    await forgetWorktree(ctx, taskId, dir);
+  }
+}
+
+async function forgetWorktree(ctx: Context, taskId: string, dir: string): Promise<void> {
+  await ctx.fx.store.update(taskId, (task) => {
+    if (task.worktreePath === dir) task.worktreePath = undefined;
+  });
 }

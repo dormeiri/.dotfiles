@@ -67,8 +67,8 @@ describe("runSetup", () => {
           ran.push(step);
           return options.failing?.includes(step.label) ? 1 : 0;
         },
-        markPortTaskInProgress: async (taskId) => {
-          inProgress.push(taskId);
+        setPortTaskStatus: async (taskId, status) => {
+          if (status === "In progress") inProgress.push(taskId);
         },
         ...options.proc,
       },
@@ -163,7 +163,7 @@ describe("runSetup", () => {
   test("a Port failure doesn't stop the setup from being recorded", async () => {
     const { fake, task } = await run({
       proc: {
-        markPortTaskInProgress: async () => {
+        setPortTaskStatus: async () => {
           throw new Error("401");
         },
       },

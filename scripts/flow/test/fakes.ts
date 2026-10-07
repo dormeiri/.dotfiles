@@ -31,6 +31,8 @@ export interface FakeOptions {
   onSession?: (launch: AgentLaunch) => void | Promise<void>;
   onSleep?: () => void | Promise<void>;
   withoutShellFunction?: boolean;
+  // Worktree dir → the error git gives when removing it.
+  worktreeErrors?: Record<string, string>;
 }
 
 export const MAIN_REPO = "/repo";
@@ -59,6 +61,7 @@ export function fakeContext(options: FakeOptions = {}) {
   const spawnedRunners: { taskId: string; logPath: string }[] = [];
   const notifications: { title: string; message: string }[] = [];
   const cds: string[] = [];
+  const removedWorktrees: { repo: string; dir: string }[] = [];
   const files = new Set(options.files);
   const texts = new Map<string, string>();
 
@@ -92,7 +95,7 @@ export function fakeContext(options: FakeOptions = {}) {
       description: `Description of ${taskId}`,
       branch: `${taskId}/slug`,
     }),
-    markPortTaskInProgress: async () => {},
+    setPortTaskStatus: async () => {},
     assume: async () => true,
     runStep: async () => 0,
     prUrl: async () => undefined,
@@ -143,6 +146,13 @@ export function fakeContext(options: FakeOptions = {}) {
       currentBranch: async (cwd) => options.branches?.[cwd],
       branchExists: async (_, branch) => options.existingBranches?.includes(branch) ?? false,
       mergeBase: async () => "abc123",
+      async removeWorktree(repo, dir, force) {
+        const error = options.worktreeErrors?.[dir];
+        if (error && !force) return error;
+        removedWorktrees.push({ repo, dir });
+        files.delete(dir);
+        return undefined;
+      },
     },
     log: {
       info: log("info"),
@@ -176,6 +186,7 @@ export function fakeContext(options: FakeOptions = {}) {
     spawnedRunners,
     notifications,
     cds,
+    removedWorktrees,
     files,
     texts,
     remainingAnswers: answers,

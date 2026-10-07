@@ -39,9 +39,7 @@ export async function chooseNext(
   const task = await loadTask(ctx, taskId);
   const choices = nextChoices(task);
   if (!nextStage(task)) {
-    fx.log.success(
-      `${taskId} went through every required stage. Run \`flow archive ${taskId}\` once it's merged.`,
-    );
+    fx.log.success(`${taskId} went through every required stage. Mark it done once it's merged.`);
   }
   const [first] = choices;
   if (!first) return undefined;
@@ -61,8 +59,27 @@ export async function chooseNext(
   return chosen;
 }
 
-function runStage(ctx: Context, taskId: string, stage: Stage): Promise<boolean> {
-  return stage === "new" ? verifyTask(ctx, taskId) : runSession(ctx, taskId, stage);
+async function runStage(ctx: Context, taskId: string, stage: Stage): Promise<boolean> {
+  switch (stage) {
+    case "new":
+      return verifyTask(ctx, taskId);
+    case "done":
+      await completeTask(ctx, taskId);
+      // The task is archived, so nothing follows.
+      return false;
+    default:
+      return runSession(ctx, taskId, stage);
+  }
+}
+
+export async function completeTask(ctx: Context, taskId: string): Promise<void> {
+  const { fx } = ctx;
+  await fx.proc.setPortTaskStatus(taskId, "Done");
+  await fx.store.update(taskId, (task) => {
+    task.stages.done.done = true;
+    task.archived = true;
+  });
+  fx.log.success(`Set ${taskId} to Done in Port and archived it.`);
 }
 
 async function verifyTask(ctx: Context, taskId: string): Promise<boolean> {

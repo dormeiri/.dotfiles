@@ -5,10 +5,12 @@ import {
   adrCommand,
   archiveCommand,
   cdCommand,
+  doneCommand,
   homeCommand,
   newCommand,
   openCommand,
   prCommand,
+  pruneCommand,
   rebaseCommand,
   resumeCommand,
   sessionCommand,
@@ -687,7 +689,13 @@ describe("review", () => {
 
     await stageCommand(fake.ctx, "review", "task_1");
 
-    expect(fake.prompts.at(-1)?.options).toEqual(["docs", "terraform", "announcement", "later"]);
+    expect(fake.prompts.at(-1)?.options).toEqual([
+      "done",
+      "docs",
+      "terraform",
+      "announcement",
+      "later",
+    ]);
 
     const session = fake.launches[0]?.session;
     expect(fake.launches[0]?.cwd).toBe(WORKTREE);
@@ -695,7 +703,7 @@ describe("review", () => {
     expect(session?.kind === "fresh" && session.prompt).toStartWith("/code-review abc123");
     expect(session?.kind === "fresh" && session.prompt).toContain(SPEC);
     expect((await fake.task("task_1")).stages.review.done).toBe(true);
-    expect(fake.logged("success").at(-1)).toContain("flow archive task_1");
+    expect(fake.logged("success").at(-1)).toContain("Mark it done once it's merged");
   });
 
   test("declining the confirmation leaves the review open", async () => {
@@ -976,7 +984,7 @@ describe("flow with no arguments", () => {
     expect(fake.launches).toEqual([]);
   });
 
-  test("still offers opening once every stage is done", async () => {
+  test("once every other stage is done, offers marking it done alongside opening", async () => {
     const fake = fakeContext({ answers: ["task_1", "later"] });
     await fake.seed("task_1", (t) => {
       readyWorktree(t);
@@ -991,6 +999,7 @@ describe("flow with no arguments", () => {
     await homeCommand(fake.ctx);
 
     expect(fake.prompts[1]?.options).toEqual([
+      "done",
       "session",
       "cd",
       "adr",
@@ -1484,5 +1493,137 @@ describe("status and archive", () => {
 
     expect((await fake.task("task_1")).archived).toBe(true);
     expect(fake.logged("info").at(-1)).toContain("No tasks in flight");
+  });
+});
+
+describe("flow done", () => {
+  test("sets the task to Done in Port and archives it", async () => {
+    const statuses: [string, string][] = [];
+    const fake = fakeContext({
+      proc: {
+        setPortTaskStatus: async (taskId, status) => {
+          statuses.push([taskId, status]);
+        },
+      },
+    });
+    await fake.seed("task_1");
+
+    await doneCommand(fake.ctx, "task_1");
+
+    expect(statuses).toEqual([["task_1", "Done"]]);
+    expect((await fake.task("task_1")).archived).toBe(true);
+  });
+
+  test("keeps the task in flight when Port fails", async () => {
+    const fake = fakeContext({
+      proc: {
+        setPortTaskStatus: async () => {
+          throw new Error("401");
+        },
+      },
+    });
+    await fake.seed("task_1");
+
+    await expect(doneCommand(fake.ctx, "task_1")).rejects.toThrow("401");
+    expect((await fake.task("task_1")).archived).toBe(false);
+  });
+
+  test("is the stage after review in the task's menu", async () => {
+    const statuses: string[] = [];
+    const fake = fakeContext({
+      answers: ["task_1", "done"],
+      proc: {
+        setPortTaskStatus: async (_, status) => {
+          statuses.push(status);
+        },
+      },
+    });
+    await fake.seed("task_1", (t) => {
+      readyWorktree(t);
+      t.stages.impl.done = true;
+      t.stages.review.done = true;
+    });
+
+    await homeCommand(fake.ctx);
+
+    expect(statuses).toEqual(["Done"]);
+    const task = await fake.task("task_1");
+    expect(task.stages.done.done).toBe(true);
+    expect(task.archived).toBe(true);
+    expect(fake.remainingAnswers).toEqual([]);
+  });
+});
+
+describe("flow prune", () => {
+  const DOCS_WORKTREE = "/worktrees/port-docs/task_1/slug";
+  const archivedWorktree = (task: TaskState) => {
+    readyWorktree(task);
+    task.archived = true;
+  };
+
+  test("removes the archived tasks' worktrees, companions included, and forgets them", async () => {
+    const fake = fakeContext({ answers: [true], files: [WORKTREE, DOCS_WORKTREE] });
+    await fake.seed("task_1", archivedWorktree);
+    await fake.seed("task_2", readyWorktree);
+
+    await pruneCommand(fake.ctx);
+
+    expect(fake.removedWorktrees).toEqual([
+      { repo: MAIN_REPO, dir: WORKTREE },
+      { repo: DOCS_REPO, dir: DOCS_WORKTREE },
+    ]);
+    expect((await fake.task("task_1")).worktreePath).toBeUndefined();
+    expect((await fake.task("task_2")).worktreePath).toBe("/worktrees/port/task_2/slug");
+  });
+
+  test("removes nothing when declined", async () => {
+    const fake = fakeContext({ answers: [false], files: [WORKTREE] });
+    await fake.seed("task_1", archivedWorktree);
+
+    await pruneCommand(fake.ctx);
+
+    expect(fake.removedWorktrees).toEqual([]);
+    expect((await fake.task("task_1")).worktreePath).toBe(WORKTREE);
+  });
+
+  test("keeps a worktree git refuses to remove and goes on with the rest", async () => {
+    const fake = fakeContext({
+      answers: [true],
+      files: [WORKTREE, DOCS_WORKTREE],
+      worktreeErrors: { [WORKTREE]: "fatal: contains modified or untracked files" },
+    });
+    await fake.seed("task_1", archivedWorktree);
+
+    await pruneCommand(fake.ctx);
+
+    expect(fake.removedWorktrees).toEqual([{ repo: DOCS_REPO, dir: DOCS_WORKTREE }]);
+    expect(fake.logged("warn")).toEqual(["fatal: contains modified or untracked files"]);
+    expect((await fake.task("task_1")).worktreePath).toBe(WORKTREE);
+  });
+
+  test("--force removes a worktree with uncommitted changes, after saying they're lost", async () => {
+    const fake = fakeContext({
+      answers: [true],
+      files: [WORKTREE],
+      worktreeErrors: { [WORKTREE]: "fatal: contains modified or untracked files" },
+    });
+    await fake.seed("task_1", archivedWorktree);
+
+    await pruneCommand(fake.ctx, { force: true });
+
+    expect(fake.prompts[0]?.message).toContain("uncommitted changes are lost");
+    expect(fake.removedWorktrees).toEqual([{ repo: MAIN_REPO, dir: WORKTREE }]);
+    expect((await fake.task("task_1")).worktreePath).toBeUndefined();
+  });
+
+  test("forgets a recorded worktree that's already gone, without asking", async () => {
+    const fake = fakeContext();
+    await fake.seed("task_1", archivedWorktree);
+
+    await pruneCommand(fake.ctx);
+
+    expect(fake.prompts).toEqual([]);
+    expect(fake.logged("info")).toEqual(["No archived task has a worktree."]);
+    expect((await fake.task("task_1")).worktreePath).toBeUndefined();
   });
 });

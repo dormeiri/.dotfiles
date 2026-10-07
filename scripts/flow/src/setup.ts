@@ -131,7 +131,7 @@ export async function runSetup(
 
   if (outcome.worktreePath) {
     try {
-      await fx.proc.markPortTaskInProgress(taskId);
+      await fx.proc.setPortTaskStatus(taskId, "In progress");
     } catch (error) {
       fx.log.warn(`Couldn't set ${taskId} to In progress: ${errorMessage(error)}`);
     }

@@ -7,11 +7,19 @@ export type CompanionStage = (typeof COMPANION_STAGES)[number];
 // Optional stages offered once the implementation is done.
 export const FOLLOW_UP_STAGES = [...COMPANION_STAGES, "announcement"] as const;
 
-export const STAGES = ["new", "research", "spec", "impl", "review", ...FOLLOW_UP_STAGES] as const;
+export const STAGES = [
+  "new",
+  "research",
+  "spec",
+  "impl",
+  "review",
+  ...FOLLOW_UP_STAGES,
+  "done",
+] as const;
 export type Stage = (typeof STAGES)[number];
-export type SessionStage = Exclude<Stage, "new">;
+export type SessionStage = Exclude<Stage, "new" | "done">;
 
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 6;
 
 const stageStateSchema = z.object({
   done: z.boolean(),
@@ -77,6 +85,10 @@ const MIGRATIONS: Record<number, Migration> = {
         ],
       ),
     ),
+  }),
+  5: (state) => ({
+    ...state,
+    stages: { ...(state.stages as Record<string, unknown>), done: { done: false } },
   }),
 };
 

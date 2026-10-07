@@ -2,8 +2,8 @@
 
 A CLI that guides a [Port](https://app.getport.io) task from idea to merged PR, one agent session (Claude Code or Cursor) per stage:
 
-```
-new → research (optional) → spec → impl → review → docs / terraform / announcement (optional)
+```text
+new → research (optional) → spec → impl → review → docs / terraform / announcement (optional) → done
 ```
 
 flow tracks each task's progress, sets up its worktree in the background, launches (or resumes) the right agent session in the right directory with the right prompt, and checks that the stage produced what it should before moving on.
@@ -22,35 +22,39 @@ It expects these on `PATH`: `bun`, `claude` and/or `agent` (Cursor CLI), `gh`, `
 
 Run `flow` with no arguments to pick an in-flight task and get its menu: the next stages, resolving the PR's conflicts (when it has any), a free session, go to the worktree, record an ADR, open the task or PR, archive.
 
-| Command | What it does |
-| --- | --- |
-| `flow new [text or URL]` | Create a Port task with `/create-task` (in the team's current iteration), or pick one of your assigned tasks, then verify it and start the worktree setup |
-| `flow new --afk` | Same, but skip verification and grilling: write the spec and implement headlessly up to a draft PR |
-| `flow research\|spec\|impl\|review [id]` | Run a stage |
-| `flow docs\|terraform\|announcement [id]` | Run a follow-up stage, once `impl` is done |
-| `flow resume` | Open the menu of the most recently updated task |
-| `flow session [id]` | Start an agent session with the task's context, outside the stages |
-| `flow adr [id]` | Record a decision with `/significant-decision-making` in the task's worktree |
-| `flow rebase [id]` | Rebase the PR onto `origin/main` and resolve its conflicts with `/rebase-pr` in the task's worktree |
-| `flow cd [id]` | `cd` into the task's worktree (or a companion repo's) |
-| `flow status [id]` | Show in-flight tasks, their stages, setup state and PRs |
-| `flow open [id]` / `flow pr [id]` | Open the task in Port / its PR |
-| `flow archive [id]` | Drop the task from the in-flight list |
+| Command                                   | What it does                                                                                                                                              |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `flow new [text or URL]`                  | Create a Port task with `/create-task` (in the team's current iteration), or pick one of your assigned tasks, then verify it and start the worktree setup |
+| `flow new --afk`                          | Same, but skip verification and grilling: write the spec and implement headlessly up to a draft PR                                                        |
+| `flow research\|spec\|impl\|review [id]`  | Run a stage                                                                                                                                               |
+| `flow docs\|terraform\|announcement [id]` | Run a follow-up stage, once `impl` is done                                                                                                                |
+| `flow resume`                             | Open the menu of the most recently updated task                                                                                                           |
+| `flow session [id]`                       | Start an agent session with the task's context, outside the stages                                                                                        |
+| `flow adr [id]`                           | Record a decision with `/significant-decision-making` in the task's worktree                                                                              |
+| `flow rebase [id]`                        | Rebase the PR onto `origin/main` and resolve its conflicts with `/rebase-pr` in the task's worktree                                                       |
+| `flow cd [id]`                            | `cd` into the task's worktree (or a companion repo's)                                                                                                     |
+| `flow status [id]`                        | Show in-flight tasks, their stages, setup state and PRs                                                                                                   |
+| `flow open [id]` / `flow pr [id]`         | Open the task in Port / its PR                                                                                                                            |
+| `flow archive [id]`                       | Drop the task from the in-flight list                                                                                                                     |
+| `flow done [id]`                          | Set the task to Done in Port and archive it                                                                                                               |
+| `flow prune`                              | Remove the worktrees (main and companion) of archived tasks; git keeps ones with uncommitted changes, and branches are kept                               |
+| `flow prune --force`                      | Same, but also remove worktrees with uncommitted changes, discarding them                                                                                 |
 
 When `[id]` is omitted, the task is inferred from the current branch, or picked from a list.
 
 ## Stages
 
-| Stage | Runs in | Prompt | Done when |
-| --- | --- | --- | --- |
-| `new` | — | Opens the task in Port to verify | You confirm it; the setup then runs in the background |
-| `research` | main repo | `/research` with a question from `$EDITOR` | `.scratch/<id>/research.md` exists |
-| `spec` | main repo | `/grill-me` on the task description, then `/to-spec` | `.scratch/<id>/spec.md` exists (also linked to the task's `spec` property) |
-| `impl` | task worktree | `/implement` the spec, open a draft PR | `gh` finds a PR for the branch |
-| `review` | task worktree | `/code-review` from the merge-base with `origin/main` | You confirm it |
-| `docs` | port-docs worktree | Document the change, open a draft PR | `gh` finds a PR |
-| `terraform` | terraform-provider worktree | Support the change, open a draft PR | `gh` finds a PR |
-| `announcement` | task worktree | `/product-announcement` (ends as a Slack draft) | You confirm it |
+| Stage          | Runs in                     | Prompt                                                                                                       | Done when                                                                  |
+| -------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| `new`          | —                           | Opens the task in Port to verify                                                                             | You confirm it; the setup then runs in the background                      |
+| `research`     | main repo                   | `/research` with a question from `$EDITOR`                                                                   | `.scratch/<id>/research.md` exists                                         |
+| `spec`         | main repo                   | `/grill-me` on the task description, then `/to-spec`                                                         | `.scratch/<id>/spec.md` exists (also linked to the task's `spec` property) |
+| `impl`         | task worktree               | `/implement` the spec, open a draft PR                                                                       | `gh` finds a PR for the branch                                             |
+| `review`       | task worktree               | `/code-review` from the merge-base with `origin/main`                                                        | You confirm it                                                             |
+| `docs`         | port-docs worktree          | Document the change, open a draft PR                                                                         | `gh` finds a PR                                                            |
+| `terraform`    | terraform-provider worktree | Support the change, open a draft PR                                                                          | `gh` finds a PR                                                            |
+| `announcement` | task worktree               | `/product-announcement` (ends as a Slack draft)                                                              | You confirm it                                                             |
+| `done`         | —                           | Sets the task to Done in Port and archives it (offered once `review` is done, alongside the optional stages) | Port accepts the update                                                    |
 
 `impl`, `docs` and `terraform` let the agent act without asking (Claude's `auto` permission mode, Cursor's `--auto-review`). Each stage remembers its session ID, so rerunning a stage offers to resume it.
 
@@ -62,13 +66,14 @@ The worktree setup (after `new`) branches the task's `branch_name` off `origin/m
 - Research and spec: `<main repo>/.scratch/<task id>/`.
 - Worktrees: `~/dev/worktrees/<repo>/<branch>`.
 
-| Variable | Default |
-| --- | --- |
-| `PORT_MONO_DIR` | `~/dev/port-labs/port` |
-| `PORT_DOCS_DIR` | `~/dev/port-labs/port-docs` |
+| Variable             | Default                                        |
+| -------------------- | ---------------------------------------------- |
+| `PORT_MONO_DIR`      | `~/dev/port-labs/port`                         |
+| `PORT_DOCS_DIR`      | `~/dev/port-labs/port-docs`                    |
 | `PORT_TERRAFORM_DIR` | `~/dev/port-labs/terraform-provider-port-labs` |
-| `FLOW_PORT_TEAM` | `workflows_team` |
-| `FLOW_STATE_DIR` | see above |
+| `FLOW_PORT_TEAM`     | `workflows_team`                               |
+| `FLOW_STATE_DIR`     | see above                                      |
+
 ### Agents
 
 The harness (the agent CLI) and the models are settings, in `AGENT_SETTINGS` (`src/agent-settings.ts`):

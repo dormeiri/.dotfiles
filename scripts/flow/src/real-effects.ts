@@ -17,7 +17,7 @@ import type {
 } from "./effects.ts";
 import { groupedSelect } from "./grouped-select.ts";
 import { realAgent } from "./harness/router.ts";
-import { entitySearchPath, IN_PROGRESS_PATCH, parsePortTask, taskEntityPath } from "./port.ts";
+import { entitySearchPath, parsePortTask, statusPatch, taskEntityPath } from "./port.ts";
 import { PR_VIEW_FIELDS, parsePrView } from "./pr.ts";
 import { capture, failure, foreground } from "./spawn.ts";
 import { fileStore, pathExists } from "./store.ts";
@@ -49,7 +49,7 @@ function processRunner(): ProcessRunner {
       return parsePortTask(taskId, JSON.parse(result.stdout));
     },
 
-    async markPortTaskInProgress(taskId) {
+    async setPortTaskStatus(taskId, status) {
       const result = await capture([
         "port",
         "api",
@@ -58,7 +58,7 @@ function processRunner(): ProcessRunner {
         "PATCH",
         taskEntityPath(taskId),
         "--data",
-        JSON.stringify(IN_PROGRESS_PATCH),
+        JSON.stringify(statusPatch(status)),
       ]);
       if (result.exitCode !== 0) throw failure(result);
     },
@@ -207,6 +207,11 @@ const gitProbe: GitProbe = {
   async mergeBase(cwd, ref) {
     const result = await capture(["git", "-C", cwd, "merge-base", "HEAD", ref]);
     return result.exitCode === 0 ? result.stdout.trim() : undefined;
+  },
+  async removeWorktree(repo, dir, force) {
+    const cmd = ["git", "-C", repo, "worktree", "remove", ...(force ? ["--force"] : []), dir];
+    const result = await capture(cmd);
+    return result.exitCode === 0 ? undefined : failure(result).message;
   },
 };
 

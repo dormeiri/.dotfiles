@@ -12,6 +12,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
   docs: "Docs PR in port-docs (optional)",
   terraform: "Terraform provider PR (optional)",
   announcement: "Send product announcement (optional)",
+  done: "Done (set to Done in Port and archive)",
 };
 
 export function nextStage(task: TaskState): RequiredStage | undefined {
@@ -21,7 +22,7 @@ export function nextStage(task: TaskState): RequiredStage | undefined {
 export function nextChoices(task: TaskState): Stage[] {
   const next = nextStage(task);
   if (next === "spec" && !task.stages.research.done) return ["research", "spec"];
-  const required = next ? [next] : [];
+  const required: Stage[] = next ? [next] : task.stages.done.done ? [] : ["done"];
   if (!task.stages.impl.done) return required;
   return [...required, ...FOLLOW_UP_STAGES.filter((stage) => !task.stages[stage].done)];
 }

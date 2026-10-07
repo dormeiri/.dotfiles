@@ -70,6 +70,12 @@ describe("migrate", () => {
     expect(parseTaskState(v4)).toEqual(expected);
   });
 
+  test("v5 gains a pending done stage", () => {
+    const { done: _, ...v5Stages } = state().stages;
+    const v5 = { ...JSON.parse(JSON.stringify(state())), version: 5, stages: v5Stages };
+    expect(parseTaskState(v5)).toEqual(state());
+  });
+
   test("fails for an older version it has no migration for", () => {
     expect(() => migrate({ version: 0 })).toThrow(/no migration from v0/);
   });

@@ -21,7 +21,12 @@ export function entitySearchPath(blueprint: string): string {
   return `/blueprints/${blueprint}/entities/search`;
 }
 
-export const IN_PROGRESS_PATCH = { properties: { status: "In progress" } };
+// The statuses flow sets; Port's task blueprint has more.
+export type PortTaskStatus = "In progress" | "Done";
+
+export function statusPatch(status: PortTaskStatus) {
+  return { properties: { status } };
+}
 
 export function linkSpecCommand(taskId: string, specPath: string): string {
   return `port api call --method PATCH ${taskEntityPath(taskId)} --data "$(jq -n --rawfile spec '${specPath}' '{properties: {spec: $spec}}')"`;

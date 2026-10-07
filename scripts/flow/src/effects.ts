@@ -1,5 +1,5 @@
 import type { Agent } from "./agent.ts";
-import type { PortTask } from "./port.ts";
+import type { PortTask, PortTaskStatus } from "./port.ts";
 import type { PrStatus } from "./pr.ts";
 import type { StateStore } from "./store.ts";
 
@@ -20,7 +20,7 @@ export interface SetupStep {
 export interface ProcessRunner {
   searchPortEntities(blueprint: string, query: unknown): Promise<unknown>;
   getPortTask(taskId: string): Promise<PortTask>;
-  markPortTaskInProgress(taskId: string): Promise<void>;
+  setPortTaskStatus(taskId: string, status: PortTaskStatus): Promise<void>;
   assume(profile: string): Promise<boolean>;
   runStep(step: SetupStep): Promise<number>;
   prUrl(cwd: string): Promise<string | undefined>;
@@ -67,6 +67,8 @@ export interface GitProbe {
   currentBranch(cwd: string): Promise<string | undefined>;
   branchExists(repo: string, branch: string): Promise<boolean>;
   mergeBase(cwd: string, ref: string): Promise<string | undefined>;
+  // Unless forced, refuses a worktree with uncommitted changes; returns git's error when it fails.
+  removeWorktree(repo: string, dir: string, force: boolean): Promise<string | undefined>;
 }
 
 export interface Effects {
