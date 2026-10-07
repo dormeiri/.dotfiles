@@ -34,3 +34,6 @@ export PATH="$HOME/.local/bin:$PATH"
 
 eval "$(op completion zsh)"; compdef _op op
 
+
+# Agent shells: pass unmatched globs through literally (e.g. `grep --include=*.tsx`) instead of erroring
+[[ -n $CLAUDECODE ]] && setopt no_nomatch

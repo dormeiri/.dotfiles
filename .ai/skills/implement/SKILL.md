@@ -10,6 +10,8 @@ Write code comment _only_ when the code cannot be understood without it, in that
 
 Run typechecking and single test files regularly.
 
+For each new test, prove it discriminates: stash the source change (keep the test), run it and confirm it fails, then restore.
+
 Once done, use /code-review to review the work.
 
 Commit your work to the current branch.
