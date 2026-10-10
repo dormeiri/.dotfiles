@@ -14,6 +14,8 @@ touch ~/.hushlogin
 
 cd ~/.dotfiles
 stow --ignore='^\.ai$' .
+# Real skills dirs, so stow links each skill and flow's install.sh can add its own next to them.
+mkdir -p ~/.claude/skills ~/.cursor/skills
 stow .ai -t ~/.claude
 stow .ai -t ~/.cursor
 
@@ -51,7 +53,8 @@ brew install \
     rtk \
     oven-sh/bun/bun
 
-bun install --cwd ~/.dotfiles/scripts/flow
+gh repo clone dormeiri/flow ~/dev/dormeiri/flow
+~/dev/dormeiri/flow/install.sh
 
 git clone https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab
 
