@@ -20,7 +20,7 @@ It expects these on `PATH`: `bun`, `claude` and/or `agent` (Cursor CLI), `gh`, `
 
 ## Usage
 
-Run `flow` with no arguments to pick an in-flight task and get its menu: the next stages, resolving the PR's conflicts (when it has any), a free session, go to the worktree, record an ADR, open the task or PR, archive.
+Run `flow` with no arguments to pick an in-flight task and get its menu: the next stages, resolving the PR's conflicts (when it has any), rerunning its failed checks (when it has any), a free session, go to the worktree, record an ADR, open the task or PR, archive.
 
 | Command                                   | What it does                                                                                                                                              |
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -32,6 +32,7 @@ Run `flow` with no arguments to pick an in-flight task and get its menu: the nex
 | `flow session [id]`                       | Start an agent session with the task's context, outside the stages                                                                                        |
 | `flow adr [id]`                           | Record a decision with `/significant-decision-making` in the task's worktree                                                                              |
 | `flow rebase [id]`                        | Rebase the PR onto `origin/main` and resolve its conflicts with `/rebase-pr` in the task's worktree                                                       |
+| `flow rerun [id]`                         | Rerun the failed GitHub Actions jobs of the task's open PR                                                                                                |
 | `flow cd [id]`                            | `cd` into the task's worktree (or a companion repo's)                                                                                                     |
 | `flow status [id]`                        | Show in-flight tasks, their stages, setup state and PRs                                                                                                   |
 | `flow open [id]` / `flow pr [id]`         | Open the task in Port / its PR                                                                                                                            |

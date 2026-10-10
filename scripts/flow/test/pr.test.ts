@@ -26,6 +26,7 @@ const pr = (overrides: Partial<PrStatus> = {}): PrStatus => ({
   state: "open",
   draft: false,
   conflicts: false,
+  failedRuns: [],
   ...overrides,
 });
 
@@ -43,6 +44,7 @@ describe("parsePrView", () => {
       review: "changes-requested",
       checks: undefined,
       conflicts: true,
+      failedRuns: [],
     });
     expect(parsePrView(view({ state: "MERGED", reviewDecision: null })).state).toBe("merged");
   });
@@ -60,6 +62,25 @@ describe("parsePrView", () => {
       parsePrView(view({ statusCheckRollup: [{ __typename: "StatusContext", state: "PENDING" }] }))
         .checks,
     ).toBe("pending");
+  });
+
+  test("collects the Actions runs of failed checks, once per run", () => {
+    const job = (conclusion: string, url: string | null) => ({
+      ...run(conclusion),
+      detailsUrl: url,
+    });
+    const rollup = [
+      job("FAILURE", "https://github.com/o/r/actions/runs/42/job/1"),
+      job("CANCELLED", "https://github.com/o/r/actions/runs/42/job/2"),
+      job("TIMED_OUT", "https://github.com/o/r/actions/runs/43/job/3"),
+      job("SUCCESS", "https://github.com/o/r/actions/runs/44/job/4"),
+      job("FAILURE", "https://ci.example.com/build/5"),
+      job("FAILURE", null),
+    ];
+    expect(parsePrView(view({ statusCheckRollup: rollup })).failedRuns).toEqual([
+      { repo: "o/r", id: "42" },
+      { repo: "o/r", id: "43" },
+    ]);
   });
 
   test("skipped and neutral checks pass", () => {

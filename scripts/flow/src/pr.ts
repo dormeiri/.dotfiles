@@ -10,6 +10,13 @@ export interface PrStatus {
   review?: "approved" | "changes-requested" | "review-required";
   checks?: "passing" | "failing" | "pending";
   conflicts: boolean;
+  // The GitHub Actions runs with a failed check; other failed checks can't be rerun through gh.
+  failedRuns: WorkflowRun[];
+}
+
+export interface WorkflowRun {
+  repo: string;
+  id: string;
 }
 
 // The implementation's PR is opened by impl; companion stages open theirs in another repo.
@@ -23,7 +30,10 @@ const checkSchema = z.object({
   status: z.string().nullish(),
   conclusion: z.string().nullish(),
   state: z.string().nullish(),
+  detailsUrl: z.string().nullish(),
 });
+
+const RUN_URL = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/actions\/runs\/(\d+)/;
 
 const prViewSchema = z.object({
   number: z.number(),
@@ -64,17 +74,30 @@ function summarizeChecks(rollup: z.infer<typeof checkSchema>[]): PrStatus["check
   return outcomes.has("pending") ? "pending" : "passing";
 }
 
+// A run has a check per job, so several failed checks may share one run.
+function failedRuns(rollup: z.infer<typeof checkSchema>[]): WorkflowRun[] {
+  const runs = new Map<string, WorkflowRun>();
+  for (const check of rollup) {
+    if (checkOutcome(check) !== "fail") continue;
+    const match = RUN_URL.exec(check.detailsUrl ?? "");
+    if (match?.[1] && match[2]) runs.set(match[2], { repo: match[1], id: match[2] });
+  }
+  return [...runs.values()];
+}
+
 // Parses `gh pr view --json ${PR_VIEW_FIELDS}`.
 export function parsePrView(raw: unknown): PrStatus {
   const pr = prViewSchema.parse(raw);
+  const rollup = pr.statusCheckRollup ?? [];
   return {
     number: pr.number,
     url: pr.url,
     state: pr.state === "OPEN" ? "open" : pr.state === "MERGED" ? "merged" : "closed",
     draft: pr.isDraft,
     review: REVIEWS[pr.reviewDecision ?? ""],
-    checks: summarizeChecks(pr.statusCheckRollup ?? []),
+    checks: summarizeChecks(rollup),
     conflicts: pr.mergeable === "CONFLICTING",
+    failedRuns: failedRuns(rollup),
   };
 }
 

@@ -255,6 +255,7 @@ export async function stageCommand(
 type HomeAction =
   | Stage
   | "rebase"
+  | "rerun"
   | "session"
   | "cd"
   | "adr"
@@ -267,11 +268,13 @@ function homeActions(task: TaskState, pr: PrStatus | undefined): Choice<HomeActi
   // impl opens the PR, but it can also be opened by hand once the spec is done.
   const mayHavePr = Boolean(task.prUrl) || task.stages.spec.done;
   const conflicted = pr?.state === "open" && pr.conflicts;
+  const rerunnable = pr?.state === "open" && pr.failedRuns.length > 0;
   return [
     ...nextChoices(task).map((stage) => ({ value: stage, label: STAGE_LABELS[stage] })),
     ...(conflicted
       ? [{ value: "rebase" as const, label: "Resolve the PR's conflicts (/rebase-pr)" }]
       : []),
+    ...(rerunnable ? [{ value: "rerun" as const, label: "Rerun the PR's failed checks" }] : []),
     { value: "session", label: "New session" },
     ...(task.worktreePath ? [{ value: "cd" as const, label: "Go to the worktree" }] : []),
     { value: "adr", label: "Record a decision (ADR)" },
@@ -309,6 +312,10 @@ async function taskMenu(ctx: Context, taskId: string, initialPr?: PrStatus): Pro
     switch (action) {
       case "rebase":
         await runRebaseSession(ctx, taskId);
+        pr = await implPr(ctx, task);
+        break;
+      case "rerun":
+        await rerunFailedChecks(ctx, taskId, pr);
         pr = await implPr(ctx, task);
         break;
       case "session":
@@ -405,6 +412,37 @@ export async function adrCommand(ctx: Context, explicit: string | undefined): Pr
 export async function rebaseCommand(ctx: Context, explicit: string | undefined): Promise<void> {
   const taskId = await resolveTaskId(ctx, explicit);
   if (taskId) await runRebaseSession(ctx, taskId);
+}
+
+async function rerunFailedChecks(
+  ctx: Context,
+  taskId: string,
+  pr: PrStatus | undefined,
+): Promise<void> {
+  const { fx } = ctx;
+  if (pr?.state !== "open") {
+    fx.log.warn(`${taskId} has no open PR.`);
+    return;
+  }
+  if (pr.failedRuns.length === 0) {
+    fx.log.info(
+      pr.checks === "failing"
+        ? "None of the PR's failed checks are GitHub Actions runs, so there's nothing to rerun."
+        : "The PR has no failed checks.",
+    );
+    return;
+  }
+  for (const run of pr.failedRuns) {
+    const spinner = fx.log.spinner(`Rerunning the failed jobs of run ${run.id}…`);
+    const error = await fx.proc.rerunFailedJobs(run);
+    spinner.stop(error ? `Couldn't rerun run ${run.id}` : `Rerunning run ${run.id}`);
+    if (error) fx.log.warn(error);
+  }
+}
+
+export async function rerunCommand(ctx: Context, explicit: string | undefined): Promise<void> {
+  const taskId = await resolveTaskId(ctx, explicit);
+  if (taskId) await rerunFailedChecks(ctx, taskId, await implPr(ctx, await loadTask(ctx, taskId)));
 }
 
 export async function statusCommand(ctx: Context, explicit: string | undefined): Promise<void> {

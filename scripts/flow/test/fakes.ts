@@ -7,6 +7,7 @@ import { AGENT_SETTINGS } from "../src/agent-settings.ts";
 import type { Config } from "../src/config.ts";
 import type { Context } from "../src/context.ts";
 import type { Choice, Effects, ProcessRunner } from "../src/effects.ts";
+import type { WorkflowRun } from "../src/pr.ts";
 import { newTaskState, type TaskState } from "../src/state.ts";
 import { fileStore } from "../src/store.ts";
 import { artifactPaths } from "../src/task.ts";
@@ -62,6 +63,7 @@ export function fakeContext(options: FakeOptions = {}) {
   const notifications: { title: string; message: string }[] = [];
   const cds: string[] = [];
   const removedWorktrees: { repo: string; dir: string }[] = [];
+  const reruns: WorkflowRun[] = [];
   const files = new Set(options.files);
   const texts = new Map<string, string>();
 
@@ -100,6 +102,10 @@ export function fakeContext(options: FakeOptions = {}) {
     runStep: async () => 0,
     prUrl: async () => undefined,
     prStatus: async () => undefined,
+    async rerunFailedJobs(run) {
+      reruns.push(run);
+      return undefined;
+    },
     openUrl: async () => {},
     async editText(initial) {
       editorTemplates.push(initial);
@@ -187,6 +193,7 @@ export function fakeContext(options: FakeOptions = {}) {
     notifications,
     cds,
     removedWorktrees,
+    reruns,
     files,
     texts,
     remainingAnswers: answers,

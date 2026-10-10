@@ -1,6 +1,6 @@
 import type { Agent } from "./agent.ts";
 import type { PortTask, PortTaskStatus } from "./port.ts";
-import type { PrStatus } from "./pr.ts";
+import type { PrStatus, WorkflowRun } from "./pr.ts";
 import type { StateStore } from "./store.ts";
 
 export interface ProcResult {
@@ -26,6 +26,8 @@ export interface ProcessRunner {
   prUrl(cwd: string): Promise<string | undefined>;
   // ref is a PR URL, or a branch of the repo at cwd; undefined when there's no PR or gh fails.
   prStatus(ref: string, cwd: string): Promise<PrStatus | undefined>;
+  // Returns gh's error when it fails.
+  rerunFailedJobs(run: WorkflowRun): Promise<string | undefined>;
   openUrl(url: string): Promise<void>;
   editText(initial: string): Promise<string>;
   spawnSetupRunner(taskId: string, logPath: string): void;

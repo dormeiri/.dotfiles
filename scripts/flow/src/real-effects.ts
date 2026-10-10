@@ -102,6 +102,11 @@ function processRunner(): ProcessRunner {
       }
     },
 
+    async rerunFailedJobs({ repo, id }) {
+      const result = await capture(["gh", "run", "rerun", id, "--failed", "--repo", repo]);
+      return result.exitCode === 0 ? undefined : failure(result).message;
+    },
+
     async openUrl(url) {
       await capture(["open", url]);
     },

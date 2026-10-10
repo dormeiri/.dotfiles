@@ -12,6 +12,7 @@ import {
   prCommand,
   pruneCommand,
   rebaseCommand,
+  rerunCommand,
   resumeCommand,
   sessionCommand,
   stageCommand,
@@ -87,6 +88,12 @@ program
   .description("Rebase the task's PR onto main and resolve its conflicts with /rebase-pr")
   .argument("[id]", "task ID (inferred from the branch, else picked)")
   .action((id?: string) => rebaseCommand(ctx, id));
+
+program
+  .command("rerun")
+  .description("Rerun the failed GitHub Actions jobs of the task's open PR")
+  .argument("[id]", "task ID (inferred from the branch, else picked)")
+  .action((id?: string) => rerunCommand(ctx, id));
 
 program
   .command("status")

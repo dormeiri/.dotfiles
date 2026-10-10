@@ -12,6 +12,7 @@ import {
   prCommand,
   pruneCommand,
   rebaseCommand,
+  rerunCommand,
   resumeCommand,
   sessionCommand,
   stageCommand,
@@ -33,6 +34,7 @@ const openPr = (overrides: Partial<PrStatus> = {}): PrStatus => ({
   state: "open",
   draft: false,
   conflicts: false,
+  failedRuns: [],
   ...overrides,
 });
 
@@ -1320,6 +1322,84 @@ describe("flow rebase", () => {
     await homeCommand(fake.ctx);
 
     expect(fake.prompts[1]?.options).not.toContain("rebase");
+  });
+});
+
+describe("flow rerun", () => {
+  const RUN = { repo: "o/r", id: "42" };
+  const withPr = (t: TaskState) => {
+    readyWorktree(t);
+    t.stages.impl.done = true;
+    t.prUrl = "https://github.com/o/r/pull/7";
+  };
+
+  test("reruns the failed jobs of each failed run", async () => {
+    const other = { repo: "o/r", id: "43" };
+    const fake = fakeContext({
+      proc: { prStatus: async () => openPr({ checks: "failing", failedRuns: [RUN, other] }) },
+    });
+    await fake.seed("task_1", withPr);
+
+    await rerunCommand(fake.ctx, "task_1");
+
+    expect(fake.reruns).toEqual([RUN, other]);
+  });
+
+  test("reports gh's error and keeps going", async () => {
+    const reruns: string[] = [];
+    const fake = fakeContext({
+      proc: {
+        prStatus: async () =>
+          openPr({ checks: "failing", failedRuns: [RUN, { repo: "o/r", id: "43" }] }),
+        async rerunFailedJobs(run) {
+          reruns.push(run.id);
+          return run.id === "42" ? "run 42 cannot be rerun" : undefined;
+        },
+      },
+    });
+    await fake.seed("task_1", withPr);
+
+    await rerunCommand(fake.ctx, "task_1");
+
+    expect(reruns).toEqual(["42", "43"]);
+    expect(fake.logged("warn")).toEqual(["run 42 cannot be rerun"]);
+  });
+
+  test("does nothing without an open PR or failed runs", async () => {
+    let pr: PrStatus | undefined;
+    const fake = fakeContext({ proc: { prStatus: async () => pr } });
+    await fake.seed("task_1", withPr);
+
+    await rerunCommand(fake.ctx, "task_1");
+    pr = openPr({ state: "merged", failedRuns: [RUN] });
+    await rerunCommand(fake.ctx, "task_1");
+    pr = openPr({ checks: "failing" });
+    await rerunCommand(fake.ctx, "task_1");
+
+    expect(fake.reruns).toEqual([]);
+    expect(fake.logged("warn")).toEqual(["task_1 has no open PR.", "task_1 has no open PR."]);
+    expect(fake.logged("info")[0]).toContain("None of the PR's failed checks");
+  });
+
+  test("the menu offers it while the PR has failed runs, and drops it once rerun", async () => {
+    let failedRuns = [RUN];
+    const fake = fakeContext({
+      answers: ["task_1", "rerun", "later"],
+      proc: {
+        prStatus: async () => openPr({ checks: "failing", failedRuns }),
+        async rerunFailedJobs() {
+          failedRuns = [];
+          return undefined;
+        },
+      },
+    });
+    await fake.seed("task_1", withPr);
+
+    await homeCommand(fake.ctx);
+
+    const [before, after] = fake.prompts.slice(1).map((p) => p.options);
+    expect(before).toContain("rerun");
+    expect(after).not.toContain("rerun");
   });
 });
 
