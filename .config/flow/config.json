@@ -1,0 +1,4 @@
+{
+  "portTeam": "workflows_team",
+  "pullMiddlewaresScript": "~/dev/my_scripts/pull-middlewares.sh"
+}
