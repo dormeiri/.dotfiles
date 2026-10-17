@@ -54,6 +54,7 @@ alias cn="concurrently"
 
 export CLAUDE_CODE_NO_FLICKER=1
 alias "cc"="claude"
+alias "claude-personal"="CLAUDE_CONFIG_DIR=$HOME/.claude-personal claude"
 
 alias cafe="caffeinate"
 
@@ -141,3 +142,7 @@ docker-cleanup-images() {
 
 export GO_PATH=~/go
 export PATH=$PATH:/$GO_PATH/bin
+
+# Bun binaries
+
+export PATH="/Users/dorm/.bun/bin:$PATH"
