@@ -55,6 +55,8 @@ brew install \
 
 gh repo clone dormeiri/flow ~/dev/dormeiri/flow
 ~/dev/dormeiri/flow/install.sh
+# flow's config names Port internals, so it lives outside this repo; fill it in from flow's config.example.json.
+[ -f ~/.config/flow/config.json ] || ~/dev/dormeiri/flow/src/main.ts config
 
 bunx skills add addyosmani/clarity -g -a claude-code cursor -y
 # The claude-code agent links into $CLAUDE_CONFIG_DIR, so a second pass covers the claude-personal profile.
