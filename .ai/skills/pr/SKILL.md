@@ -82,6 +82,15 @@ sequenceDiagram
     Daemon-->>UI: stream result
 ```
 
+- Show an API contract, payload, or event shape as a contract schema, using prettified JSON:
+
+```json
+{
+  "session": "abc123",
+  "title": "My Session"
+}
+```
+
 - Use `diff` when the point is what changes and the surrounding shape already exists. Match the diff shape to the topic.
 
 For a component change:
@@ -132,6 +141,17 @@ For a state or control-flow change:
 +  invalidate cache
 ```
 
+For a contract-schema change, keep the JSON prettified with one field per line:
+
+```diff
+ {
+   "session": "abc123",
+-  "title": "My Session"
++  "title": "My Session",
++  "skill": "show-me"
+ }
+```
+
 - Show the whole block when most of it is new, when omitted context would hide ownership or order, or when the user needs a copyable target shape:
 
 ```ts
@@ -140,6 +160,8 @@ function expandSkill(command: string): string {
   return `use the ${skillName} skill`;
 }
 ```
+
+- If performance may be affected, explain the expected impact and what's done to measure it.
 
 #### Guidance
 
@@ -159,4 +181,4 @@ Execution-based evidence is A-tier. Test results, console output. Show the exact
 
 Describe whether it's a one-way or two-way door. You can walk back through two-way doors, but not one-way doors. A PR that is cheap to roll back is lower risk. Changes that involve destructive actions or hard-to-reverse decisions are one-way doors.
 
-The blast radius is the potential impact or scope of the changes introduced by this PR. Consider all possibilities. Examples are layout shift, breakages for consumers, mobile responsiveness, etc.
+The blast radius is the potential impact or scope of the changes introduced by this PR. Consider all possibilities. Examples are performance, breakages for consumers, responsiveness, etc.

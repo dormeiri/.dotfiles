@@ -12,8 +12,8 @@ A glossary here means: an alphabetical list of the specialized, technical, or do
 
 ## Where the file goes
 
-- **Whole repo / single project**: `docs/GLOSSARY.md` at the root.
-- **Monorepo with multiple services**: one glossary per project, at `apps/<project-name>/docs/GLOSSARY.md`.
+- **Whole repo / single project**: `GLOSSARY.md` at the root.
+- **Monorepo with multiple services**: one glossary per project, at `apps/<project-name>/GLOSSARY.md`.
 
 ## Process
 

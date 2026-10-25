@@ -56,6 +56,10 @@ brew install \
 gh repo clone dormeiri/flow ~/dev/dormeiri/flow
 ~/dev/dormeiri/flow/install.sh
 
+bunx skills add addyosmani/clarity -g -a claude-code cursor -y
+# The claude-code agent links into $CLAUDE_CONFIG_DIR, so a second pass covers the claude-personal profile.
+CLAUDE_CONFIG_DIR=~/.claude-personal bunx skills add addyosmani/clarity -g -a claude-code -y
+
 git clone https://github.com/Aloxaf/fzf-tab ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab
 
 gh extension install dlvhdr/gh-dash
