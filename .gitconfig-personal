@@ -1,0 +1,6 @@
+# Personal profile, included by .gitconfig for repos whose remote is under github.com/dormeiri.
+[user]
+	email = dormeiri@gmail.com
+[credential "https://github.com"]
+	helper = 
+	helper = !$HOME/.local/bin/mygh auth git-credential

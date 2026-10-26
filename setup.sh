@@ -13,6 +13,8 @@ touch ~/.credentials
 touch ~/.hushlogin
 
 cd ~/.dotfiles
+# Real dir, so stow links mygh into it instead of folding ~/.local into this repo.
+mkdir -p ~/.local/bin
 stow --ignore='^\.ai$' .
 # Real skills dirs, so stow links each skill and flow's install.sh can add its own next to them.
 mkdir -p ~/.claude/skills ~/.cursor/skills

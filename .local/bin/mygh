@@ -1,0 +1,4 @@
+#!/bin/sh
+# gh, always authenticated as the personal account (dormeiri), regardless of gh's active account.
+token="$(gh auth token --hostname github.com --user dormeiri)" || exit 1
+GH_TOKEN="$token" exec gh "$@"
