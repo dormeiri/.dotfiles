@@ -45,6 +45,31 @@ require("treesitter-context").setup()
 require("nvim-highlight-colors").setup()
 require("illuminate").configure({})
 require("todo-comments").setup()
+require("zen-mode").setup()
+vim.api.nvim_create_autocmd("BufEnter", {
+	group = vim.api.nvim_create_augroup("zen_mode_markdown_augroup", { clear = true }),
+	callback = function(args)
+		if vim.bo[args.buf].buftype ~= "" then
+			return
+		end
+		-- Deferred so filetype is set and zen-mode's own window switching has settled
+		vim.schedule(function()
+			local zen_view = require("zen-mode.view")
+			local is_markdown = vim.bo.filetype == "markdown"
+			if is_markdown and not zen_view.is_open() then
+				zen_view.open()
+			elseif not is_markdown and vim.bo.buftype == "" and zen_view.is_open() then
+				-- Carry the new buffer to the parent window, otherwise it would still show the markdown buffer and reopen zen
+				local buf = vim.api.nvim_get_current_buf()
+				if zen_view.parent and vim.api.nvim_win_is_valid(zen_view.parent) then
+					vim.api.nvim_win_set_buf(zen_view.parent, buf)
+				end
+				zen_view.close()
+			end
+		end)
+	end,
+	desc = "Open zen mode in markdown buffers, close it when leaving them",
+})
 require("nvim-surround").setup({})
 require("mini.align").setup()
 

@@ -12,7 +12,7 @@ vim.opt.expandtab = true
 vim.opt.smartindent = true
 vim.g.editorconfig = false
 
-vim.opt.wrap = false
+vim.opt.wrap = true
 
 vim.opt.incsearch = true
 vim.opt.ignorecase = true

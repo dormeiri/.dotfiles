@@ -56,6 +56,7 @@ vim.pack.add({
 	"https://github.com/folke/todo-comments.nvim",
 	"https://github.com/folke/trouble.nvim",
 	"https://github.com/brenoprata10/nvim-highlight-colors",
+	"https://github.com/folke/zen-mode.nvim",
 
 	-- Navigation
 	"https://github.com/dmtrKovalenko/fff.nvim",

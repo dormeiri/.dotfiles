@@ -99,6 +99,7 @@ map("n", "<C-Up>", ":resize -2<cr>", { desc = "Decrease window height" })
 map("n", "<C-Down>", ":resize +2<cr>", { desc = "Increase window height" })
 map("n", "<C-Right>", ":vertical resize +2<cr>", { desc = "Increase window width" })
 map("n", "<C-Left>", ":vertical resize -2<cr>", { desc = "Decrease window width" })
+map("n", "<leader>z", "<cmd>ZenMode<cr>", { desc = "Toggle zen mode" })
 
 -- Editing
 map({ "n", "v" }, "<c-X>", "<c-x>", { desc = "Decrease number" })
