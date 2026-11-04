@@ -17,8 +17,6 @@ Invoking this skill is the user's explicit request to rebase and force-push the 
 
 5. **Push** with `git push --force-with-lease`. Never use plain `--force`.
 
-6. **Wait for checks** with `gh pr checks <number> --watch --interval 60` in the background, and wait on it instead of sleeping. If a check fails, report it and stop; don't mark the PR ready.
+6. **Restore the ready state.** If the PR was ready in step 1, wait 1 minute (`sleep 60` is fine here), then check `gh pr view <number> --json isDraft`. If it became a draft, run `gh pr ready <number>`. If it was a draft in step 1, leave it as a draft. Do not wait for CI checks to finish.
 
-7. **Restore the ready state.** If the PR was ready in step 1 and is now a draft, run `gh pr ready <number>`. If it was a draft in step 1, leave it as a draft.
-
-Reply with the PR link, which commits had conflicts and how each was resolved, the check results, and whether the PR is ready. If marking it ready started more CI jobs, say they are still running.
+Reply with the PR link, which commits had conflicts and how each was resolved, and whether the PR is ready. If marking it ready started CI jobs, say they are still running.
