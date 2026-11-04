@@ -53,7 +53,8 @@ brew install \
     parallel \
     tree \
     rtk \
-    oven-sh/bun/bun
+    oven-sh/bun/bun \
+    glow
 
 gh repo clone dormeiri/flow ~/dev/dormeiri/flow
 ~/dev/dormeiri/flow/install.sh

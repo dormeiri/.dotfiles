@@ -96,6 +96,11 @@ fpr() {
         --header "Enter to checkout, CTRL-O to open, CTRL-Y to copy URL"
 }
 
+# Usage: pmd <pr-or-branch> [repo] [filename]
+pmd() {
+    claude -p --model haiku "/print-markdown $*" | glow --pager
+}
+
 alias wta='$HOME/.dotfiles/scripts/wta.sh'
 [ -f ~/dev/dormeiri/flow/shell/flow.zsh ] && source ~/dev/dormeiri/flow/shell/flow.zsh
 
