@@ -1,5 +1,5 @@
 ---
-name: significant-decision-making
+name: make-significant-decision
 description: When a decision is significant enough, record it in an ADR.
 ---
 
