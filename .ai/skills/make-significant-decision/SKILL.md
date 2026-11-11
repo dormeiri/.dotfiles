@@ -58,6 +58,24 @@ When the user states how something works, check whether the code agrees. If you 
 
 Use the format in [ADR_FORMAT.md](./ADR_FORMAT.md).
 
+## After writing the ADR: ASD-STE100 pass
+
+When the ADR is complete, launch one sub-agent (Task tool, `generalPurpose`, foreground) to rewrite the ADR prose in ASD-STE100 Simplified Technical English. Give it the absolute ADR path and this prompt:
+
+```text
+Rewrite the ADR at <ABSOLUTE_PATH> in place to follow ASD-STE100 Simplified Technical English.
+
+Do NOT change:
+- The ADR template structure, section headings, or order.
+- The meaning, decision, trade-offs, alternatives, or confidence level.
+- Code blocks, inline code, links, file paths, or ADR numbers.
+
+If an STE rewrite would lose technical precision, keep the precise wording.
+Return a short list of the changes you made and any sentence you left non-compliant, with the reason.
+```
+
+Review the sub-agent's result: confirm that the decision and rationale did not change meaning. Fix any drift before you report back to the user.
+
 ## Clarifying questions
 
 If user AFK: Include confidence level and conditions that would trigger reevaluation when relevant.
